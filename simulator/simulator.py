@@ -45,6 +45,8 @@ class SimulationResult:
     makespan: int
     idle_time: int
     context_switches: int
+    context_switch_time: int
+    max_waiting_time: int
 
 
 def compute_metrics(scheduled: List[Process]) -> List[ProcessMetrics]:
@@ -113,10 +115,13 @@ def run_simulation(
     avg_tat = sum(m.turnaround_time for m in metrics) / n if n else 0.0
     avg_wt  = sum(m.waiting_time    for m in metrics) / n if n else 0.0
     avg_rt  = sum(m.response_time   for m in metrics) / n if n else 0.0
-    busy_time = sum(end - start for _, start, end in timeline)
+    busy_time = sum(end - start for pid, start, end in timeline if pid != "CS")
+    context_switch_time = sum(end - start for pid, start, end in timeline if pid == "CS")
     makespan = max((end for _, _, end in timeline), default=0)
+    process_timeline = [entry for entry in timeline if entry[0] != "CS"]
     context_switches = sum(
-        previous[0] != current[0] for previous, current in zip(timeline, timeline[1:])
+        previous[0] != current[0]
+        for previous, current in zip(process_timeline, process_timeline[1:])
     )
 
     return SimulationResult(
@@ -129,6 +134,8 @@ def run_simulation(
         cpu_utilization    = busy_time / makespan if makespan else 0.0,
         throughput         = n / makespan if makespan else 0.0,
         makespan           = makespan,
-        idle_time          = makespan - busy_time,
+        idle_time          = makespan - busy_time - context_switch_time,
         context_switches   = context_switches,
+        context_switch_time= context_switch_time,
+        max_waiting_time   = max((metric.waiting_time for metric in metrics), default=0),
     )

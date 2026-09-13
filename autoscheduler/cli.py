@@ -11,6 +11,7 @@ from autoscheduler.dataset import build_dataset, save_dataset
 from autoscheduler.evaluation import compare_algorithms, score_results
 from autoscheduler.experiments import evaluate_model, save_evaluation
 from autoscheduler.model import load_model, train_model
+from autoscheduler.priority_rr import tune_priority_rr
 from autoscheduler.workloads import PROFILES, generate_workload
 
 
@@ -60,9 +61,19 @@ def _compare(arguments) -> None:
 
 
 def _evaluate(arguments) -> None:
+    tuning = None
+    priority_rr_config = None
+    if arguments.tune_priority_rr:
+        tuning = tune_priority_rr(arguments.tune_samples_per_profile, arguments.tune_seed)
+        priority_rr_config = {
+            key: tuning["selected"][key]
+            for key in ("quantum", "aging_interval", "context_switch_cost")
+        }
     rows, summary = evaluate_model(
-        _model(arguments.model), arguments.samples_per_profile, arguments.seed
+        _model(arguments.model), arguments.samples_per_profile, arguments.seed, priority_rr_config
     )
+    if tuning:
+        summary["priority_rr_tuning"] = tuning
     save_evaluation(rows, summary, arguments.output)
     print(f"Samples: {summary['samples']}")
     print(f"Accuracy: {summary['accuracy']:.3f}")
@@ -74,6 +85,8 @@ def _evaluate(arguments) -> None:
     print(f"Adaptive beats best static: {summary['adaptive_beats_best_static']}")
     print(f"Adaptive beats SJF: {summary['adaptive_beats_sjf']}")
     print(f"Eligible for next adaptive phase: {summary['eligible_for_next_adaptive_phase']}")
+    print(f"Priority RR config: {summary['priority_rr_config']}")
+    print(f"Priority RR beats SJF: {summary['priority_rr_beats_sjf']}")
     print(f"Results: {arguments.output}")
 
 
@@ -100,6 +113,9 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--seed", type=int, default=2026)
     evaluate.add_argument("--model", default=str(DEFAULT_MODEL))
     evaluate.add_argument("--output", default="results")
+    evaluate.add_argument("--tune-priority-rr", action="store_true")
+    evaluate.add_argument("--tune-samples-per-profile", type=int, default=500)
+    evaluate.add_argument("--tune-seed", type=int, default=42)
     evaluate.set_defaults(handler=_evaluate)
     return parser
 

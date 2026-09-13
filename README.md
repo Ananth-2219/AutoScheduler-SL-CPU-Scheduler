@@ -10,11 +10,11 @@ The project is a simulator, not an operating-system kernel scheduler.
 
 - Backward-compatible single CPU-burst processes
 - Alternating CPU and I/O bursts with blocked-process events
-- Deterministic FCFS, SJF, Round Robin, and Priority policies
+- Deterministic FCFS, SJF, Round Robin, Priority, and Priority-RR policies
 - Interactive, batch, CPU-intensive, I/O-intensive, and mixed workloads
 - Waiting, response, turnaround, utilization, throughput, idle-time, makespan,
-  and context-switch metrics
-- Oracle labels based on all four algorithms
+  context-switch, switch-time, and maximum-wait metrics
+- Four-policy ML labels and five-policy static baseline evaluation
 - Offline decision-tree training and held-out evaluation
 - CLI comparison tables, timelines, CSV data, JSON summaries, and PNG charts
 
@@ -52,6 +52,12 @@ Evaluate 1,000 unseen workloads and write `results/` artifacts:
 
 ```bash
 python main.py evaluate
+```
+
+Tune Priority-RR on seed-42 validation workloads before held-out evaluation:
+
+```bash
+python main.py evaluate --tune-priority-rr
 ```
 
 Use `python main.py <command> --help` to override sample counts, seeds, paths,
@@ -98,8 +104,9 @@ Post-simulation metrics are never classifier inputs.
 
 ## Oracle Score
 
-Each workload runs under all four algorithms. Metrics are min-max normalized
-within that workload. Lower score is better.
+ML training labels use four selectable policies. Priority-RR is a static
+baseline only. Held-out Priority-RR evaluation normalizes metrics across all
+five static policies, so its absolute scores are a separate experiment run.
 
 | Metric | Weight |
 |---|---:|
@@ -132,6 +139,12 @@ SJF (`adaptive_beats_sjf` and `eligible_for_next_adaptive_phase` are both true).
 The score weights are fixed for this experiment; changing them requires a
 separate written findings review.
 
+Priority-RR tuning evaluates nine validation-only settings: quantums `1`, `2`,
+`4` and aging intervals `4`, `8`, `12`. It promotes I/O-returning processes one
+priority class and charges one tick for each process switch. It passes only when
+held-out mean score and maximum individual waiting time are both strictly lower
+than SJF.
+
 The checked-in experiment summary is available at `results/REPORT.md`. Current
 evidence shows that the trained selector matches, but does not beat, static SJF.
 
@@ -160,6 +173,7 @@ Results, Discussion, Limitations, and Conclusion.
 - One algorithm selected before each workload; no mid-run switching
 - Offline retraining only
 - Synthetic workloads, not kernel traces
-- No multicore affinity, deadlines, cache effects, or real context-switch cost
+- No multicore affinity, deadlines, cache effects, or burst prediction
+- Switch cost is simulated only for Priority-RR; it is not kernel timing
 - Priority is not part of the weighted objective, so Priority Scheduling may
   rarely be the oracle winner

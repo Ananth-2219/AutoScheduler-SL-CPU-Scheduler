@@ -2,6 +2,7 @@ import unittest
 
 from scheduler.fcfs import fcfs
 from scheduler.priority import priority_scheduling
+from scheduler.priority_rr import priority_round_robin
 from scheduler.round_robin import round_robin
 from scheduler.sjf import sjf
 from simulator.process import Process
@@ -42,6 +43,43 @@ class SchedulerTests(unittest.TestCase):
                 ("P1", 7, 8),
             ],
         )
+
+    def test_priority_round_robin_ages_waiting_processes(self):
+        _, timeline = priority_round_robin(
+            [Process("P1", 0, 1, priority=5), Process("P2", 0, 6, priority=1)],
+            quantum=1,
+            aging_interval=1,
+            context_switch_cost=0,
+        )
+        self.assertEqual([pid for pid, _, _ in timeline][:5], ["P2", "P2", "P2", "P2", "P1"])
+
+    def test_priority_round_robin_boosts_io_returning_process(self):
+        _, timeline = priority_round_robin(
+            [
+                Process("P1", 0, 2, priority=2, cpu_bursts=(1, 1), io_bursts=(1,)),
+                Process("P2", 0, 3, priority=2),
+            ],
+            quantum=1,
+            aging_interval=10,
+            context_switch_cost=0,
+        )
+        self.assertEqual([pid for pid, _, _ in timeline][:3], ["P1", "P2", "P1"])
+
+    def test_priority_round_robin_charges_switch_time_not_idle_time(self):
+        result = run_simulation(
+            "Priority RR",
+            priority_round_robin,
+            [Process("P1", 0, 2, priority=1), Process("P2", 0, 1, priority=1)],
+            quantum=1,
+            aging_interval=10,
+            context_switch_cost=1,
+        )
+        self.assertEqual(result.context_switches, 2)
+        self.assertEqual(result.context_switch_time, 2)
+        self.assertEqual(result.makespan, 5)
+        self.assertEqual(result.idle_time, 0)
+        self.assertEqual(result.max_waiting_time, 3)
+        self.assertEqual(result.cpu_utilization, 3 / 5)
 
     def test_cpu_io_bursts_block_and_resume(self):
         processes = [

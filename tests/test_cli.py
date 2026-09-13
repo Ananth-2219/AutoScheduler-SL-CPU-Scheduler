@@ -49,9 +49,13 @@ class CliTests(unittest.TestCase):
                 model,
                 "--output",
                 results,
+                "--tune-priority-rr",
+                "--tune-samples-per-profile",
+                5,
             )
             self.assertIn("Best static", evaluated.stdout)
             self.assertIn("Adaptive beats SJF", evaluated.stdout)
+            self.assertIn("Priority RR beats SJF", evaluated.stdout)
             self.assertTrue((results / "evaluation.csv").exists())
             self.assertTrue((results / "summary.json").exists())
             self.assertTrue((results / "scores.png").exists())

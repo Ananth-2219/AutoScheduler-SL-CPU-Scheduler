@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-from autoscheduler.evaluation import compare_algorithms, oracle_label
+from autoscheduler.evaluation import SELECTOR_ALGORITHMS, compare_algorithms, oracle_label
 from autoscheduler.features import extract_features
 from autoscheduler.workloads import PROFILES, generate_workload
 
@@ -19,7 +19,9 @@ def build_dataset(samples_per_profile: int = 500, seed: int = 42) -> list[dict]:
         for sample_index in range(samples_per_profile):
             workload_seed = seed * 10_000_000 + profile_index * 1_000_000 + sample_index
             workload = generate_workload(profile, workload_seed)
-            label, scores = oracle_label(compare_algorithms(workload.processes))
+            label, scores = oracle_label(
+                compare_algorithms(workload.processes, algorithms=SELECTOR_ALGORITHMS)
+            )
             row = extract_features(workload.processes)
             row.update({"profile": profile, "seed": workload_seed, "label": label})
             row.update({f"score_{name.lower().replace(' ', '_')}": score for name, score in scores.items()})

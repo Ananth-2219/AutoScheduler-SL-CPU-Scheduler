@@ -34,13 +34,15 @@ def _confusion_matrix(rows: list[dict]) -> dict[str, dict[str, int]]:
     }
 
 
-def evaluate_model(model, samples_per_profile: int = 200, seed: int = 2026) -> tuple[list[dict], dict]:
+def evaluate_model(
+    model, samples_per_profile: int = 200, seed: int = 2026, priority_rr_config: dict | None = None
+) -> tuple[list[dict], dict]:
     rows = []
     for profile_index, profile in enumerate(PROFILES):
         for sample_index in range(samples_per_profile):
             workload_seed = seed * 10_000_000 + profile_index * 1_000_000 + sample_index
             workload = generate_workload(profile, workload_seed)
-            results = compare_algorithms(workload.processes)
+            results = compare_algorithms(workload.processes, priority_rr_config)
             oracle, scores = oracle_label(results)
             adaptive = run_adaptive(workload.processes, model)
             selected = adaptive.selected_algorithm
@@ -54,6 +56,18 @@ def evaluate_model(model, samples_per_profile: int = 200, seed: int = 2026) -> t
                 "inference_ms": adaptive.inference_ms,
             }
             row.update({f"score_{name.lower().replace(' ', '_')}": value for name, value in scores.items()})
+            row.update(
+                {
+                    f"max_wait_{name.lower().replace(' ', '_')}": result.max_waiting_time
+                    for name, result in results.items()
+                }
+            )
+            row.update(
+                {
+                    f"switch_time_{name.lower().replace(' ', '_')}": result.context_switch_time
+                    for name, result in results.items()
+                }
+            )
             rows.append(row)
 
     def summarize(group: list[dict]) -> dict:
@@ -91,6 +105,10 @@ def evaluate_model(model, samples_per_profile: int = 200, seed: int = 2026) -> t
                 row[_score_column(algorithm)] - row[_score_column(row["oracle"])] for row in rows
             ),
             "accuracy": mean(row["oracle"] == algorithm for row in rows),
+            "max_waiting_time": max(row[f"max_wait_{algorithm.lower().replace(' ', '_')}"] for row in rows),
+            "mean_context_switch_time": mean(
+                row[f"switch_time_{algorithm.lower().replace(' ', '_')}"] for row in rows
+            ),
         }
         for algorithm in ALGORITHMS
     }
@@ -127,6 +145,13 @@ def evaluate_model(model, samples_per_profile: int = 200, seed: int = 2026) -> t
     summary["adaptive_beats_best_static"] = summary["mean_adaptive_score"] < best_static_score
     summary["adaptive_beats_sjf"] = adaptive_summary["mean_score"] < constant_sjf["mean_score"]
     summary["eligible_for_next_adaptive_phase"] = summary["adaptive_beats_sjf"]
+    priority_rr = static_policies["Priority RR"]
+    sjf = static_policies["SJF"]
+    summary["priority_rr_beats_sjf"] = (
+        priority_rr["mean_score"] < sjf["mean_score"]
+        and priority_rr["max_waiting_time"] < sjf["max_waiting_time"]
+    )
+    summary["priority_rr_config"] = priority_rr_config or ALGORITHMS["Priority RR"][1]
     return rows, summary
 
 

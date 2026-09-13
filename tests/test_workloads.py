@@ -34,6 +34,12 @@ class WorkloadTests(unittest.TestCase):
             self.assertGreaterEqual(result.cpu_utilization, 0)
             self.assertLessEqual(result.cpu_utilization, 1)
 
+    def test_priority_round_robin_is_a_static_baseline(self):
+        results = compare_algorithms(generate_workload("mixed", seed=9, process_count=12).processes)
+        result = results["Priority RR"]
+        self.assertGreater(result.context_switch_time, 0)
+        self.assertGreaterEqual(result.max_waiting_time, result.avg_waiting_time)
+
     def test_oracle_returns_one_algorithm_and_normalized_scores(self):
         results = compare_algorithms(generate_workload("batch", 2, 10).processes)
         label, scores = oracle_label(results)

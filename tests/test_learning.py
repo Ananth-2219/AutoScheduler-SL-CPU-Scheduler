@@ -5,6 +5,7 @@ from pathlib import Path
 from autoscheduler.adaptive import run_adaptive
 from autoscheduler.dataset import build_dataset
 from autoscheduler.evaluation import run_algorithm
+from autoscheduler.evaluation import SELECTOR_ALGORITHMS
 from autoscheduler.features import FEATURE_NAMES
 from autoscheduler.workloads import generate_workload
 
@@ -42,6 +43,7 @@ class LearningTests(unittest.TestCase):
         second = build_dataset(samples_per_profile=2, seed=42)
         self.assertEqual(first, second)
         self.assertEqual(len({row["seed"] for row in first}), len(first))
+        self.assertTrue({row["label"] for row in first}.issubset(SELECTOR_ALGORITHMS))
 
     def test_adaptive_result_matches_selected_static_algorithm(self):
         workload = generate_workload("mixed", 91, 10)

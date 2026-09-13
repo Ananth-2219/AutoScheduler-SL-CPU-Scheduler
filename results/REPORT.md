@@ -1,90 +1,40 @@
-# AutoScheduler Experimental Report
+# AutoScheduler Priority-RR Experiment
 
-## Methodology
+## Method
 
-AutoScheduler generates five seeded synthetic workload profiles: interactive,
-batch, CPU-intensive, I/O-intensive, and mixed. Each process contains an arrival
-time, priority, and alternating CPU and I/O bursts. FCFS, SJF, Round Robin, and
-Priority Scheduling run on every training workload.
+This single-CPU experiment adds Priority Round Robin as a deterministic static
+baseline. It uses priority classes, Round Robin dispatch, one-level I/O-return
+promotion, aging, and one tick of process-switch cost. Existing decision tree
+remains a four-policy selector; Priority-RR is not a new ML label.
 
-The oracle label is the algorithm with the lowest workload-normalized score:
-30% waiting time, 25% response time, 20% turnaround time, 15% CPU-utilization
-penalty, and 10% throughput penalty. The decision tree receives only features
-available before simulation.
+Nine configurations use quantum values 1, 2, and 4 with aging intervals 4, 8,
+and 12. Selection uses seed-42 validation workloads only. Each held-out score
+normalizes all five static policies within each workload; score weights remain
+unchanged.
 
-## Experimental Setup
+## Setup
 
-- Training data: 2,500 workloads, 500 per profile, seed 42
-- Split: 70% training, 15% validation, 15% internal test
-- Held-out evaluation: 1,000 workloads, 200 per profile, seed 2026
-- Tuned parameters: tree depth and minimum leaf size
-- Selected tree: depth 3, minimum leaf size 10
-- Oracle class distribution: SJF 2,033; Priority 283; FCFS 168; Round Robin 16
-
-Candidates are selected by lowest validation mean regret, then lower depth and
-larger minimum leaf size. Accuracy is diagnostic, not the tuning objective.
-Oracle weights stayed fixed for this experiment.
+- Tuning data: 2,500 generated workloads, seed 42; 375 validation workloads
+- Held-out data: 1,000 workloads, 200 per profile, seed 2026
+- Selected Priority-RR configuration: quantum 1, aging interval 4, switch cost 1
+- Pass rule: Priority-RR must have lower mean score and lower maximum waiting
+  time than SJF
 
 ## Results
 
-- Validation accuracy: 81.3%
-- Validation mean regret: 0.0195
-- Internal test accuracy: 81.3%
-- Internal test mean regret: 0.0168
-- Held-out accuracy: 80.0%
-- Mean adaptive score: 0.2556
-- Constant SJF score: 0.2556
-- Best static algorithm: SJF, score 0.2556
-- Oracle score: 0.2370
-- Mean regret from oracle: 0.0187
-- Mean selector inference time: 0.063 ms
-- `adaptive_beats_sjf`: false
-- `eligible_for_next_adaptive_phase`: false
+- Best static baseline: Round Robin, mean score 0.1061
+- SJF: mean score 0.1577; maximum wait 279 ticks
+- Priority-RR: mean score 0.7744; maximum wait 605 ticks
+- Priority-RR mean regret: 0.6683
+- Priority-RR mean switch time: 169.507 ticks
+- `priority_rr_beats_sjf`: false
 
-The trained model selected SJF for all 1,000 held-out workloads. Therefore,
-AutoScheduler did not strictly outperform constant SJF and cannot proceed to a
-new adaptive phase under the diagnostic gate.
-
-## Diagnostic Evidence
-
-Held-out oracle labels were FCFS 71, SJF 800, Round Robin 6, and Priority 123.
-The selected-policy distribution was SJF 1,000, so every confusion-matrix count
-falls in the SJF selection column. The leading feature importances were I/O
-frequency (45.4%), burst variance (36.3%), burst mean (7.7%), I/O-to-CPU ratio
-(7.1%), and priority mean (3.6%).
-
-`evaluation.csv`, `confusion_matrix.csv`, `feature_importance.csv`, and
-`diagnostics.png` preserve the raw diagnostic evidence. The strict pass rule is
-adaptive mean score < constant-SJF mean score. A score change requires a
-separate written findings review.
-
-## Discussion
-
-The experiment does not yet demonstrate useful adaptive behavior. SJF wins 80%
-of held-out oracle labels and the selected scoring function strongly rewards the
-waiting and turnaround metrics that SJF is designed to minimize. Classifier
-accuracy therefore overstates the value of adaptation: a constant SJF selector
-achieves the same aggregate result. The diagnostics make this explicit rather
-than treating 80% classifier accuracy as evidence of adaptive value.
-
-The oracle's lower score shows that workload-specific selection has theoretical
-room to improve. Current features and objective do not make minority winners
-predictable enough for this decision tree.
-
-## Limitations
-
-- Synthetic workloads may not match production operating-system traces.
-- Priority importance and fairness are absent from the oracle score.
-- Context switches are counted but have no simulated time cost.
-- Round Robin wins few labels under the selected weights.
-- Selection occurs once per workload, not during execution.
-- Results cover one seeded training set and one held-out evaluation set.
+Priority-RR fails both gates. Short selected quantum creates many switches;
+one-tick switch cost dominates this synthetic workload mix. Oracle winners:
+Round Robin 794, SJF 181, FCFS 25, Priority 0, Priority-RR 0.
 
 ## Conclusion
 
-The implementation proves the complete adaptive-scheduling experiment pipeline,
-including CPU/I/O simulation, reproducible data generation, oracle labeling,
-training, inference, and baseline comparison. Current evidence does not support
-a claim that the adaptive selector improves performance over SJF. Future work
-requires a separate findings review before revising score weights or expanding
-adaptive scheduling; until then, constant SJF is the simpler supported choice.
+Do not expand this Priority-RR design or add RL. Keep SJF or Round Robin as
+supported baseline for this score. Revisit objectives only through separate
+findings review that explicitly values fairness or priority service.

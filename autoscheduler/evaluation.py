@@ -6,6 +6,7 @@ from typing import Iterable
 
 from scheduler.fcfs import fcfs
 from scheduler.priority import priority_scheduling
+from scheduler.priority_rr import priority_round_robin
 from scheduler.round_robin import round_robin
 from scheduler.sjf import sjf
 from simulator.process import Process
@@ -17,6 +18,14 @@ ALGORITHMS = {
     "SJF": (sjf, {}),
     "Round Robin": (round_robin, {"quantum": 2}),
     "Priority": (priority_scheduling, {}),
+    "Priority RR": (
+        priority_round_robin,
+        {"quantum": 2, "aging_interval": 8, "context_switch_cost": 1},
+    ),
+}
+
+SELECTOR_ALGORITHMS = {
+    name: config for name, config in ALGORITHMS.items() if name != "Priority RR"
 }
 
 SCORE_WEIGHTS = {
@@ -28,14 +37,23 @@ SCORE_WEIGHTS = {
 }
 
 
-def run_algorithm(name: str, processes: Iterable[Process]) -> SimulationResult:
+def run_algorithm(
+    name: str, processes: Iterable[Process], priority_rr_config: dict | None = None
+) -> SimulationResult:
     scheduler, kwargs = ALGORITHMS[name]
+    if name == "Priority RR" and priority_rr_config:
+        kwargs = {**kwargs, **priority_rr_config}
     return run_simulation(name, scheduler, list(processes), **kwargs)
 
 
-def compare_algorithms(processes: Iterable[Process]) -> dict[str, SimulationResult]:
+def compare_algorithms(
+    processes: Iterable[Process], priority_rr_config: dict | None = None, algorithms=None
+) -> dict[str, SimulationResult]:
     processes = list(processes)
-    return {name: run_algorithm(name, processes) for name in ALGORITHMS}
+    return {
+        name: run_algorithm(name, processes, priority_rr_config)
+        for name in (algorithms or ALGORITHMS)
+    }
 
 
 def _normalize(values: dict[str, float], maximize: bool = False) -> dict[str, float]:
@@ -60,5 +78,5 @@ def score_results(results: dict[str, SimulationResult]) -> dict[str, float]:
 
 def oracle_label(results: dict[str, SimulationResult]) -> tuple[str, dict[str, float]]:
     scores = score_results(results)
-    label = min(ALGORITHMS, key=lambda name: (scores[name], tuple(ALGORITHMS).index(name)))
+    label = min(results, key=lambda name: (scores[name], tuple(ALGORITHMS).index(name)))
     return label, scores
