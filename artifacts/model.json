@@ -1,0 +1,19 @@
+{
+  "rows": 2500,
+  "random_state": 42,
+  "split": {
+    "train": 0.7,
+    "validation": 0.15,
+    "test": 0.15
+  },
+  "class_distribution": {
+    "SJF": 2033,
+    "Priority": 283,
+    "FCFS": 168,
+    "Round Robin": 16
+  },
+  "max_depth": 3,
+  "min_samples_leaf": 1,
+  "validation_accuracy": 0.8133333333333334,
+  "test_accuracy": 0.8133333333333334
+}

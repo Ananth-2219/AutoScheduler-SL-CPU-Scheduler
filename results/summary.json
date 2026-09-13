@@ -1,0 +1,61 @@
+{
+  "samples": 1000,
+  "accuracy": 0.8,
+  "mean_regret": 0.018667661981366723,
+  "median_regret": 0.0,
+  "regret_stddev": 0.04979258045658759,
+  "mean_inference_ms": 0.06042182403689367,
+  "per_profile": {
+    "interactive": {
+      "samples": 200,
+      "accuracy": 0.855,
+      "mean_regret": 0.014806528568953987,
+      "median_regret": 0.0,
+      "regret_stddev": 0.04741468657577815,
+      "mean_inference_ms": 0.0767524900038552
+    },
+    "batch": {
+      "samples": 200,
+      "accuracy": 0.73,
+      "mean_regret": 0.028859723146587177,
+      "median_regret": 0.0,
+      "regret_stddev": 0.06328213253838978,
+      "mean_inference_ms": 0.0561079350336513
+    },
+    "cpu_intensive": {
+      "samples": 200,
+      "accuracy": 0.61,
+      "mean_regret": 0.02970591958386059,
+      "median_regret": 0.0,
+      "regret_stddev": 0.051632074682431084,
+      "mean_inference_ms": 0.056359555119342986
+    },
+    "io_intensive": {
+      "samples": 200,
+      "accuracy": 0.83,
+      "mean_regret": 0.01926856637768302,
+      "median_regret": 0.0,
+      "regret_stddev": 0.05367829149932728,
+      "mean_inference_ms": 0.0563689450154925
+    },
+    "mixed": {
+      "samples": 200,
+      "accuracy": 0.975,
+      "mean_regret": 0.0006975722297488403,
+      "median_regret": 0.0,
+      "regret_stddev": 0.0057078561602818675,
+      "mean_inference_ms": 0.05652019501212635
+    }
+  },
+  "mean_static_scores": {
+    "FCFS": 0.508485759531646,
+    "SJF": 0.2556230164513694,
+    "Round Robin": 0.5026511021621074,
+    "Priority": 0.51045953485078
+  },
+  "best_static_algorithm": "SJF",
+  "mean_adaptive_score": 0.2556230164513694,
+  "mean_oracle_score": 0.23695535447000268,
+  "adaptive_improvement_vs_best_static": 0.0,
+  "adaptive_beats_best_static": false
+}

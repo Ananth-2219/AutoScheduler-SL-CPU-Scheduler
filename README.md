@@ -1,66 +1,151 @@
-# AutoScheduler: Self-Learning CPU Scheduling Algorithm
+# AutoScheduler: Workload-Adaptive CPU Scheduling Simulator
 
-A modular Python implementation of classic CPU scheduling algorithms, serving as the foundational engine for a future self-learning (ML-based) adaptive scheduler.
+AutoScheduler is a single-CPU research simulator that compares FCFS, SJF,
+Round Robin, and Priority Scheduling, then uses an offline-trained decision tree
+to select one algorithm for a new workload.
 
----
+The project is a simulator, not an operating-system kernel scheduler.
 
-## Phase 1 — Basic CPU Scheduling Engine
+## Features
 
-This phase implements four core scheduling algorithms with a shared process model and simulation layer. No machine learning or adaptive logic is included yet.
+- Backward-compatible single CPU-burst processes
+- Alternating CPU and I/O bursts with blocked-process events
+- Deterministic FCFS, SJF, Round Robin, and Priority policies
+- Interactive, batch, CPU-intensive, I/O-intensive, and mixed workloads
+- Waiting, response, turnaround, utilization, throughput, idle-time, makespan,
+  and context-switch metrics
+- Oracle labels based on all four algorithms
+- Offline decision-tree training and held-out evaluation
+- CLI comparison tables, timelines, CSV data, JSON summaries, and PNG charts
 
-### Algorithms Implemented
+## Setup
 
-| Algorithm | Type | File |
-|---|---|---|
-| First Come First Serve (FCFS) | Non-preemptive | `scheduler/fcfs.py` |
-| Shortest Job First (SJF) | Non-preemptive | `scheduler/sjf.py` |
-| Round Robin (RR) | Preemptive | `scheduler/round_robin.py` |
-| Priority Scheduling | Non-preemptive | `scheduler/priority.py` |
+Requires Python 3.10 or newer.
 
-### Project Structure
-
-```text
-AutoScheduler/
-│
-├── scheduler/
-│   ├── __init__.py
-│   ├── fcfs.py          # First Come First Serve
-│   ├── sjf.py           # Shortest Job First (non-preemptive)
-│   ├── round_robin.py   # Round Robin (configurable quantum)
-│   └── priority.py      # Priority Scheduling (1 = highest priority)
-│
-├── simulator/
-│   ├── __init__.py
-│   ├── process.py       # Process dataclass
-│   └── simulator.py     # Metrics engine & SimulationResult
-│
-├── main.py              # Demo: runs all four algorithms on a test workload
-└── README.md
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-### Quick Start
+## Commands
+
+Run the original Phase 1 demonstration:
 
 ```bash
 python main.py
 ```
 
-No external dependencies — pure Python 3.7+.
+Generate 2,500 oracle-labeled workloads and train the model:
 
-### Metrics Reported
+```bash
+python main.py train
+```
 
-| Metric | Formula |
+Compare all static policies with the adaptive selection:
+
+```bash
+python main.py compare --profile mixed --seed 42
+```
+
+Evaluate 1,000 unseen workloads and write `results/` artifacts:
+
+```bash
+python main.py evaluate
+```
+
+Use `python main.py <command> --help` to override sample counts, seeds, paths,
+or comparison workload size.
+
+## Architecture
+
+- `scheduler/`: stable policy entry points
+- `simulator/`: process model, shared event engine, and metrics
+- `autoscheduler/workloads.py`: seeded synthetic workload generation
+- `autoscheduler/features.py`: pre-simulation feature extraction
+- `autoscheduler/evaluation.py`: static comparison and weighted oracle scoring
+- `autoscheduler/dataset.py`: labeled CSV dataset generation
+- `autoscheduler/model.py`: decision-tree tuning and persistence
+- `autoscheduler/adaptive.py`: one-time workload classification and execution
+- `autoscheduler/experiments.py`: held-out evaluation and artifacts
+- `autoscheduler/cli.py`: train, compare, and evaluate commands
+
+## Workload Profiles
+
+| Profile | Main behavior |
 |---|---|
-| Turnaround Time (TAT) | Completion Time − Arrival Time |
-| Waiting Time (WT) | Turnaround Time − Burst Time |
-| Response Time (RT) | First Start Time − Arrival Time |
+| Interactive | Short CPU bursts with repeated I/O waits |
+| Batch | Long jobs arriving in compact groups |
+| CPU-intensive | Long CPU bursts with little I/O |
+| I/O-intensive | Many short CPU bursts separated by longer I/O waits |
+| Mixed | Per-process mixture of the other four profiles |
 
-### Scheduling Conventions
+Every generator uses a local seeded random source. Identical profile, seed, and
+process count produce identical workloads.
 
-- **Priority**: Lower number = higher priority (1 is highest).
-- **Tie-breaking**: All algorithms break ties deterministically by `(key, arrival_time, pid)` to produce consistent, repeatable results.
-- **Idle CPU**: When no process is available, the clock advances to the next arrival.
-- **Round Robin quantum**: Configurable via the `quantum` parameter (default = 2). New arrivals during a quantum are enqueued before the preempted process.
+## Model Inputs
 
----
+The classifier receives only information available before scheduling:
 
-> **Next phase**: ML workload classification, real-time performance monitoring, and adaptive algorithm switching.
+- Process count and arrival rate
+- Total CPU-burst mean and variance
+- Short-job ratio
+- Priority mean and variance
+- Mean I/O frequency
+- I/O-to-CPU time ratio
+
+Post-simulation metrics are never classifier inputs.
+
+## Oracle Score
+
+Each workload runs under all four algorithms. Metrics are min-max normalized
+within that workload. Lower score is better.
+
+| Metric | Weight |
+|---|---:|
+| Mean waiting time | 30% |
+| Mean response time | 25% |
+| Mean turnaround time | 20% |
+| CPU-utilization penalty | 15% |
+| Throughput penalty | 10% |
+
+The default dataset has 500 workloads per profile. Training uses a seeded,
+stratified 70/15/15 train, validation, and test split. Tuning changes only tree
+depth and minimum leaf size.
+
+## Evaluation
+
+Default evaluation uses 200 unseen workloads per profile with a separate seed.
+Reports include classification accuracy, score regret against the oracle,
+inference time, per-profile summaries, all static baselines, adaptive score, and
+oracle score.
+
+The checked-in experiment summary is available at `results/REPORT.md`. Current
+evidence shows that the trained selector matches, but does not beat, static SJF.
+
+Run tests with:
+
+```bash
+python -m unittest discover -v
+```
+
+## Research Interpretation
+
+The experiment must report observed results, including negative or mixed
+results. A high classifier accuracy alone does not prove better scheduling.
+Primary evidence is adaptive weighted score and regret compared with the best
+global static algorithm and the per-workload oracle.
+
+Suggested paper sections: Methodology, Simulator Design, Workload Generation,
+Feature Engineering, Oracle Labeling, Model Training, Experimental Setup,
+Results, Discussion, Limitations, and Conclusion.
+
+## Limitations
+
+- Single simulated CPU only
+- One algorithm selected before each workload; no mid-run switching
+- Offline retraining only
+- Synthetic workloads, not kernel traces
+- No multicore affinity, deadlines, cache effects, or real context-switch cost
+- Priority is not part of the weighted objective, so Priority Scheduling may
+  rarely be the oracle winner

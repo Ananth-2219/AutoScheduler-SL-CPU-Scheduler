@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+.cache/
+artifacts/*.joblib
+artifacts/*.csv
+results/evaluation.csv

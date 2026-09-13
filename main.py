@@ -92,13 +92,16 @@ def print_result(result: SimulationResult):
     print(f"  Average Turnaround Time : {result.avg_turnaround_time:.2f}")
     print(f"  Average Waiting Time    : {result.avg_waiting_time:.2f}")
     print(f"  Average Response Time   : {result.avg_response_time:.2f}")
+    print(f"  CPU Utilization         : {result.cpu_utilization:.2%}")
+    print(f"  Throughput              : {result.throughput:.3f}")
+    print(f"  Context Switches        : {result.context_switches}")
     print()
 
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-def main():
+def demo():
     print()
     print("=" * 60)
     print("  AutoScheduler — CPU Scheduling Engine Demo")
@@ -126,6 +129,17 @@ def main():
     print(SEPARATOR)
     print("  Done.")
     print(SEPARATOR)
+
+
+def main():
+    import sys
+
+    if len(sys.argv) == 1:
+        demo()
+        return
+    from autoscheduler.cli import main as cli_main
+
+    cli_main()
 
 
 if __name__ == "__main__":
