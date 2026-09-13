@@ -17,42 +17,81 @@ def _imports():
     return joblib, accuracy_score, train_test_split, DecisionTreeClassifier
 
 
+def _score_column(algorithm: str) -> str:
+    return f"score_{algorithm.lower().replace(' ', '_')}"
+
+
+def _mean_regret(rows: list[dict], predictions: list[str]) -> float:
+    return sum(
+        row[_score_column(prediction)] - row[_score_column(row["label"])]
+        for row, prediction in zip(rows, predictions)
+    ) / len(rows)
+
+
+def _candidate_key(metrics: dict, depth_rank: int) -> tuple:
+    """Prefer lower regret; resolve ties with the simpler, more regularized tree."""
+    return (metrics["validation_mean_regret"], depth_rank, -metrics["min_samples_leaf"])
+
+
 def train_model(rows: list[dict], model_path: str | Path, random_state: int = 42) -> dict:
     if len(rows) < 20:
         raise ValueError("at least 20 labeled workloads are required")
     joblib, accuracy_score, train_test_split, DecisionTreeClassifier = _imports()
-    features = [[row[name] for name in FEATURE_NAMES] for row in rows]
     labels = [row["label"] for row in rows]
     stratify = labels if min(Counter(labels).values()) >= 2 else None
-
-    train_x, holdout_x, train_y, holdout_y = train_test_split(
-        features, labels, test_size=0.30, random_state=random_state, stratify=stratify
+    indexes = list(range(len(rows)))
+    train_indexes, holdout_indexes = train_test_split(
+        indexes, test_size=0.30, random_state=random_state, stratify=stratify
     )
-    holdout_stratify = holdout_y if min(Counter(holdout_y).values()) >= 2 else None
-    validation_x, test_x, validation_y, test_y = train_test_split(
-        holdout_x,
-        holdout_y,
+    holdout_labels = [labels[index] for index in holdout_indexes]
+    holdout_stratify = holdout_labels if min(Counter(holdout_labels).values()) >= 2 else None
+    validation_indexes, test_indexes = train_test_split(
+        holdout_indexes,
         test_size=0.50,
         random_state=random_state,
         stratify=holdout_stratify,
     )
+    train_rows = [rows[index] for index in train_indexes]
+    validation_rows = [rows[index] for index in validation_indexes]
+    test_rows = [rows[index] for index in test_indexes]
+    train_x = [[row[name] for name in FEATURE_NAMES] for row in train_rows]
+    train_y = [row["label"] for row in train_rows]
+    validation_x = [[row[name] for name in FEATURE_NAMES] for row in validation_rows]
+    validation_y = [row["label"] for row in validation_rows]
+    test_x = [[row[name] for name in FEATURE_NAMES] for row in test_rows]
+    test_y = [row["label"] for row in test_rows]
 
     best = None
-    best_accuracy = -1.0
+    best_key = None
     best_settings = None
-    for max_depth in (3, 5, 8, None):
-        for min_samples_leaf in (1, 5, 10):
+    best_metrics = None
+    candidate_metrics = []
+    for depth_rank, max_depth in enumerate((3, 5, 8, None)):
+        for min_samples_leaf in (10, 5, 1):
             candidate = DecisionTreeClassifier(
                 max_depth=max_depth,
                 min_samples_leaf=min_samples_leaf,
                 random_state=random_state,
             ).fit(train_x, train_y)
-            accuracy = accuracy_score(validation_y, candidate.predict(validation_x))
-            if accuracy > best_accuracy:
-                best, best_accuracy = candidate, accuracy
+            predictions = list(candidate.predict(validation_x))
+            accuracy = accuracy_score(validation_y, predictions)
+            regret = _mean_regret(validation_rows, predictions)
+            metrics = {
+                "max_depth": max_depth,
+                "min_samples_leaf": min_samples_leaf,
+                "validation_accuracy": accuracy,
+                "validation_mean_regret": regret,
+            }
+            candidate_metrics.append(metrics)
+            key = _candidate_key(metrics, depth_rank)
+            if best_key is None or key < best_key:
+                best, best_key = candidate, key
                 best_settings = (max_depth, min_samples_leaf)
+                best_metrics = metrics
 
-    test_accuracy = accuracy_score(test_y, best.predict(test_x))
+    test_predictions = list(best.predict(test_x))
+    test_accuracy = accuracy_score(test_y, test_predictions)
+    test_regret = _mean_regret(test_rows, test_predictions)
     final_model = DecisionTreeClassifier(
         max_depth=best_settings[0],
         min_samples_leaf=best_settings[1],
@@ -69,8 +108,14 @@ def train_model(rows: list[dict], model_path: str | Path, random_state: int = 42
         "class_distribution": dict(Counter(labels)),
         "max_depth": best_settings[0],
         "min_samples_leaf": best_settings[1],
-        "validation_accuracy": best_accuracy,
+        "validation_accuracy": best_metrics["validation_accuracy"],
+        "validation_mean_regret": best_metrics["validation_mean_regret"],
         "test_accuracy": test_accuracy,
+        "test_mean_regret": test_regret,
+        "feature_importance": {
+            name: float(value) for name, value in zip(FEATURE_NAMES, final_model.feature_importances_)
+        },
+        "candidate_metrics": candidate_metrics,
     }
 
 

@@ -31,7 +31,9 @@ def _train(arguments) -> None:
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(f"Training rows: {report['rows']}")
     print(f"Validation accuracy: {report['validation_accuracy']:.3f}")
+    print(f"Validation regret: {report['validation_mean_regret']:.4f}")
     print(f"Test accuracy: {report['test_accuracy']:.3f}")
+    print(f"Test regret: {report['test_mean_regret']:.4f}")
     print(f"Model: {arguments.model}")
 
 
@@ -67,8 +69,11 @@ def _evaluate(arguments) -> None:
     print(f"Mean regret: {summary['mean_regret']:.4f}")
     print(f"Best static: {summary['best_static_algorithm']}")
     print(f"Adaptive score: {summary['mean_adaptive_score']:.4f}")
+    print(f"Constant SJF score: {summary['constant_sjf']['mean_score']:.4f}")
     print(f"Oracle score: {summary['mean_oracle_score']:.4f}")
     print(f"Adaptive beats best static: {summary['adaptive_beats_best_static']}")
+    print(f"Adaptive beats SJF: {summary['adaptive_beats_sjf']}")
+    print(f"Eligible for next adaptive phase: {summary['eligible_for_next_adaptive_phase']}")
     print(f"Results: {arguments.output}")
 
 

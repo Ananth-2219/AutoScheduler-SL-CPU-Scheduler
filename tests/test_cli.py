@@ -31,6 +31,7 @@ class CliTests(unittest.TestCase):
                 dataset,
             )
             self.assertIn("Test accuracy", trained.stdout)
+            self.assertIn("Validation regret", trained.stdout)
             self.assertTrue(model.exists())
             self.assertTrue(dataset.exists())
 
@@ -50,9 +51,13 @@ class CliTests(unittest.TestCase):
                 results,
             )
             self.assertIn("Best static", evaluated.stdout)
+            self.assertIn("Adaptive beats SJF", evaluated.stdout)
             self.assertTrue((results / "evaluation.csv").exists())
             self.assertTrue((results / "summary.json").exists())
             self.assertTrue((results / "scores.png").exists())
+            self.assertTrue((results / "confusion_matrix.csv").exists())
+            self.assertTrue((results / "feature_importance.csv").exists())
+            self.assertTrue((results / "diagnostics.png").exists())
 
 
 if __name__ == "__main__":

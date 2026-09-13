@@ -1,0 +1,17 @@
+oracle,selected,count
+FCFS,FCFS,0
+FCFS,SJF,71
+FCFS,Round Robin,0
+FCFS,Priority,0
+SJF,FCFS,0
+SJF,SJF,800
+SJF,Round Robin,0
+SJF,Priority,0
+Round Robin,FCFS,0
+Round Robin,SJF,6
+Round Robin,Round Robin,0
+Round Robin,Priority,0
+Priority,FCFS,0
+Priority,SJF,123
+Priority,Round Robin,0
+Priority,Priority,0

@@ -15,6 +15,28 @@ class _FixedModel:
 
 
 class LearningTests(unittest.TestCase):
+    def test_candidate_selection_prefers_regret_over_accuracy(self):
+        from autoscheduler.model import _candidate_key
+
+        lower_accuracy_lower_regret = {
+            "validation_accuracy": 0.50,
+            "validation_mean_regret": 0.01,
+            "min_samples_leaf": 10,
+        }
+        higher_accuracy_higher_regret = {
+            "validation_accuracy": 0.90,
+            "validation_mean_regret": 0.02,
+            "min_samples_leaf": 1,
+        }
+        self.assertLess(
+            _candidate_key(lower_accuracy_lower_regret, 1),
+            _candidate_key(higher_accuracy_higher_regret, 0),
+        )
+        self.assertLess(
+            _candidate_key({**lower_accuracy_lower_regret, "min_samples_leaf": 10}, 0),
+            _candidate_key({**lower_accuracy_lower_regret, "min_samples_leaf": 1}, 0),
+        )
+
     def test_dataset_has_unique_reproducible_seeds(self):
         first = build_dataset(samples_per_profile=2, seed=42)
         second = build_dataset(samples_per_profile=2, seed=42)
@@ -46,6 +68,9 @@ class LearningTests(unittest.TestCase):
             self.assertIn(prediction, {row["label"] for row in rows})
             self.assertGreaterEqual(report["test_accuracy"], 0)
             self.assertLessEqual(report["test_accuracy"], 1)
+            self.assertGreaterEqual(report["validation_mean_regret"], 0)
+            self.assertGreaterEqual(report["test_mean_regret"], 0)
+            self.assertEqual(set(report["feature_importance"]), set(FEATURE_NAMES))
 
 
 if __name__ == "__main__":

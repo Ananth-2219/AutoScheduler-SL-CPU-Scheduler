@@ -111,14 +111,26 @@ within that workload. Lower score is better.
 
 The default dataset has 500 workloads per profile. Training uses a seeded,
 stratified 70/15/15 train, validation, and test split. Tuning changes only tree
-depth and minimum leaf size.
+depth and minimum leaf size. It selects the candidate with the lowest validation
+mean regret (then lower depth, then larger leaf size), rather than highest
+classification accuracy.
 
 ## Evaluation
 
 Default evaluation uses 200 unseen workloads per profile with a separate seed.
 Reports include classification accuracy, score regret against the oracle,
 inference time, per-profile summaries, all static baselines, adaptive score, and
-oracle score.
+oracle score. It also writes `confusion_matrix.csv`, `feature_importance.csv`,
+and `diagnostics.png`, alongside `evaluation.csv`, `summary.json`, and
+`scores.png`.
+
+`summary.json` records oracle and selected-policy distributions per profile,
+the oracle-versus-selected confusion matrix, and mean score/regret for each
+static policy, constant SJF, adaptive selection, and the oracle. The adaptive
+phase passes only when its held-out mean score is *strictly lower* than constant
+SJF (`adaptive_beats_sjf` and `eligible_for_next_adaptive_phase` are both true).
+The score weights are fixed for this experiment; changing them requires a
+separate written findings review.
 
 The checked-in experiment summary is available at `results/REPORT.md`. Current
 evidence shows that the trained selector matches, but does not beat, static SJF.
@@ -134,7 +146,9 @@ python -m unittest discover -v
 The experiment must report observed results, including negative or mixed
 results. A high classifier accuracy alone does not prove better scheduling.
 Primary evidence is adaptive weighted score and regret compared with the best
-global static algorithm and the per-workload oracle.
+global static algorithm, constant SJF, and the per-workload oracle. Do not
+expand adaptive scheduling when the strict SJF pass rule fails; report the
+negative result or conduct a separate score-review study first.
 
 Suggested paper sections: Methodology, Simulator Design, Workload Generation,
 Feature Engineering, Oracle Labeling, Model Training, Experimental Setup,
