@@ -14,6 +14,7 @@ This phase implements four core scheduling algorithms with a shared process mode
 |---|---|---|
 | First Come First Serve (FCFS) | Non-preemptive | `scheduler/fcfs.py` |
 | Shortest Job First (SJF) | Non-preemptive | `scheduler/sjf.py` |
+| Shortest Remaining Time First (SRTF) | Preemptive | `scheduler/srtf.py` |
 | Round Robin (RR) | Preemptive | `scheduler/round_robin.py` |
 | Priority Scheduling | Non-preemptive | `scheduler/priority.py` |
 
@@ -26,6 +27,7 @@ AutoScheduler/
 │   ├── __init__.py
 │   ├── fcfs.py          # First Come First Serve
 │   ├── sjf.py           # Shortest Job First (non-preemptive)
+│   ├── srtf.py          # Shortest Remaining Time First (preemptive)
 │   ├── round_robin.py   # Round Robin (configurable quantum)
 │   └── priority.py      # Priority Scheduling (1 = highest priority)
 │
@@ -34,14 +36,21 @@ AutoScheduler/
 │   ├── process.py       # Process dataclass
 │   └── simulator.py     # Metrics engine & SimulationResult
 │
-├── main.py              # Demo: runs all four algorithms on a test workload
+├── tests/
+│   └── test_srtf.py     # Test suite for SRTF and regression tests
+│
+├── main.py              # Demo: runs all algorithms on a test workload
 └── README.md
 ```
 
 ### Quick Start
 
 ```bash
+# Run the demo
 python main.py
+
+# Run the test suite
+python -m unittest discover -s tests
 ```
 
 No external dependencies — pure Python 3.7+.
