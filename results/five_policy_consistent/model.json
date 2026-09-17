@@ -1,0 +1,218 @@
+{
+  "rows": 2500,
+  "random_state": 42,
+  "split": {
+    "train": 0.7,
+    "validation": 0.15,
+    "test": 0.15
+  },
+  "class_distribution": {
+    "Round Robin": 2035,
+    "FCFS": 70,
+    "SJF": 395
+  },
+  "max_depth": 3,
+  "min_samples_leaf": 1,
+  "validation_accuracy": 0.824,
+  "validation_mean_regret": 0.0037495238329204195,
+  "test_accuracy": 0.8,
+  "test_mean_regret": 0.004927146081441929,
+  "validation_static_scores": {
+    "FCFS": 0.20984285414055776,
+    "SJF": 0.16496928602829114,
+    "Round Robin": 0.11305171796964276,
+    "Priority": 0.30625382530144935,
+    "Priority RR": 0.7733933246230609
+  },
+  "static_baseline": "Round Robin",
+  "priority_rr_config": {
+    "quantum": 1,
+    "aging_interval": 4,
+    "context_switch_cost": 1
+  },
+  "policy_set": [
+    "FCFS",
+    "SJF",
+    "Round Robin",
+    "Priority",
+    "Priority RR"
+  ],
+  "feature_importance": {
+    "process_count": 0.0,
+    "arrival_rate": 0.018938814366741996,
+    "burst_mean": 0.1065904031033865,
+    "burst_variance": 0.09276033449181265,
+    "short_job_ratio": 0.7257689752389199,
+    "priority_mean": 0.0,
+    "priority_variance": 0.05594147279913902,
+    "io_frequency": 0.0,
+    "io_cpu_ratio": 0.0
+  },
+  "candidate_metrics": [
+    {
+      "max_depth": 3,
+      "min_samples_leaf": 10,
+      "validation_accuracy": 0.816,
+      "validation_mean_regret": 0.0038082224291310844
+    },
+    {
+      "max_depth": 3,
+      "min_samples_leaf": 5,
+      "validation_accuracy": 0.8186666666666667,
+      "validation_mean_regret": 0.004172128207117025
+    },
+    {
+      "max_depth": 3,
+      "min_samples_leaf": 1,
+      "validation_accuracy": 0.824,
+      "validation_mean_regret": 0.0037495238329204195
+    },
+    {
+      "max_depth": 5,
+      "min_samples_leaf": 10,
+      "validation_accuracy": 0.8053333333333333,
+      "validation_mean_regret": 0.005641924765682509
+    },
+    {
+      "max_depth": 5,
+      "min_samples_leaf": 5,
+      "validation_accuracy": 0.8,
+      "validation_mean_regret": 0.006154211245807156
+    },
+    {
+      "max_depth": 5,
+      "min_samples_leaf": 1,
+      "validation_accuracy": 0.8106666666666666,
+      "validation_mean_regret": 0.005536250041992883
+    },
+    {
+      "max_depth": 8,
+      "min_samples_leaf": 10,
+      "validation_accuracy": 0.7706666666666667,
+      "validation_mean_regret": 0.006419561812694707
+    },
+    {
+      "max_depth": 8,
+      "min_samples_leaf": 5,
+      "validation_accuracy": 0.7546666666666667,
+      "validation_mean_regret": 0.007397340783494165
+    },
+    {
+      "max_depth": 8,
+      "min_samples_leaf": 1,
+      "validation_accuracy": 0.7706666666666667,
+      "validation_mean_regret": 0.007048512701696819
+    },
+    {
+      "max_depth": null,
+      "min_samples_leaf": 10,
+      "validation_accuracy": 0.7573333333333333,
+      "validation_mean_regret": 0.0067592966748348795
+    },
+    {
+      "max_depth": null,
+      "min_samples_leaf": 5,
+      "validation_accuracy": 0.7546666666666667,
+      "validation_mean_regret": 0.00834621395381778
+    },
+    {
+      "max_depth": null,
+      "min_samples_leaf": 1,
+      "validation_accuracy": 0.7386666666666667,
+      "validation_mean_regret": 0.00841434309003004
+    }
+  ],
+  "priority_rr_tuning": {
+    "samples": 375,
+    "seed": 42,
+    "policy_set": [
+      "FCFS",
+      "SJF",
+      "Round Robin",
+      "Priority",
+      "Priority RR"
+    ],
+    "candidates": [
+      {
+        "quantum": 1,
+        "aging_interval": 4,
+        "context_switch_cost": 1,
+        "validation_mean_score": 0.7746190885392295,
+        "validation_sjf_mean_score": 0.15988503491206024,
+        "validation_max_waiting_time": 626
+      },
+      {
+        "quantum": 1,
+        "aging_interval": 8,
+        "context_switch_cost": 1,
+        "validation_mean_score": 0.8056755899193637,
+        "validation_sjf_mean_score": 0.16112732540028007,
+        "validation_max_waiting_time": 596
+      },
+      {
+        "quantum": 1,
+        "aging_interval": 12,
+        "context_switch_cost": 1,
+        "validation_mean_score": 0.8414435020931855,
+        "validation_sjf_mean_score": 0.16218222534385002,
+        "validation_max_waiting_time": 587
+      },
+      {
+        "quantum": 2,
+        "aging_interval": 4,
+        "context_switch_cost": 1,
+        "validation_mean_score": 0.7929628255345172,
+        "validation_sjf_mean_score": 0.1668179139080335,
+        "validation_max_waiting_time": 468
+      },
+      {
+        "quantum": 2,
+        "aging_interval": 8,
+        "context_switch_cost": 1,
+        "validation_mean_score": 0.8166388395993819,
+        "validation_sjf_mean_score": 0.1676457183957894,
+        "validation_max_waiting_time": 458
+      },
+      {
+        "quantum": 2,
+        "aging_interval": 12,
+        "context_switch_cost": 1,
+        "validation_mean_score": 0.8517451632461014,
+        "validation_sjf_mean_score": 0.16881861809628676,
+        "validation_max_waiting_time": 446
+      },
+      {
+        "quantum": 4,
+        "aging_interval": 4,
+        "context_switch_cost": 1,
+        "validation_mean_score": 0.8184844797015268,
+        "validation_sjf_mean_score": 0.17564929945237628,
+        "validation_max_waiting_time": 382
+      },
+      {
+        "quantum": 4,
+        "aging_interval": 8,
+        "context_switch_cost": 1,
+        "validation_mean_score": 0.8352583561159298,
+        "validation_sjf_mean_score": 0.17633698000279416,
+        "validation_max_waiting_time": 381
+      },
+      {
+        "quantum": 4,
+        "aging_interval": 12,
+        "context_switch_cost": 1,
+        "validation_mean_score": 0.8652385341079804,
+        "validation_sjf_mean_score": 0.17717424511570348,
+        "validation_max_waiting_time": 377
+      }
+    ],
+    "selected": {
+      "quantum": 1,
+      "aging_interval": 4,
+      "context_switch_cost": 1,
+      "validation_mean_score": 0.7746190885392295,
+      "validation_sjf_mean_score": 0.15988503491206024,
+      "validation_max_waiting_time": 626
+    }
+  }
+}

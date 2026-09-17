@@ -1,0 +1,26 @@
+oracle,selected,count
+FCFS,FCFS,0
+FCFS,SJF,25
+FCFS,Round Robin,0
+FCFS,Priority,0
+FCFS,Priority RR,0
+SJF,FCFS,0
+SJF,SJF,181
+SJF,Round Robin,0
+SJF,Priority,0
+SJF,Priority RR,0
+Round Robin,FCFS,0
+Round Robin,SJF,794
+Round Robin,Round Robin,0
+Round Robin,Priority,0
+Round Robin,Priority RR,0
+Priority,FCFS,0
+Priority,SJF,0
+Priority,Round Robin,0
+Priority,Priority,0
+Priority,Priority RR,0
+Priority RR,FCFS,0
+Priority RR,SJF,0
+Priority RR,Round Robin,0
+Priority RR,Priority,0
+Priority RR,Priority RR,0

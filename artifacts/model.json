@@ -1,0 +1,106 @@
+{
+  "rows": 2500,
+  "random_state": 42,
+  "split": {
+    "train": 0.7,
+    "validation": 0.15,
+    "test": 0.15
+  },
+  "class_distribution": {
+    "SJF": 2033,
+    "Priority": 283,
+    "FCFS": 168,
+    "Round Robin": 16
+  },
+  "max_depth": 3,
+  "min_samples_leaf": 10,
+  "validation_accuracy": 0.8133333333333334,
+  "validation_mean_regret": 0.01945544138421465,
+  "test_accuracy": 0.8133333333333334,
+  "test_mean_regret": 0.016787479078523154,
+  "feature_importance": {
+    "process_count": 0.0,
+    "arrival_rate": 0.0,
+    "burst_mean": 0.07687015309769107,
+    "burst_variance": 0.3630939121340318,
+    "short_job_ratio": 0.0,
+    "priority_mean": 0.03552213935602974,
+    "priority_variance": 0.0,
+    "io_frequency": 0.4537734070397524,
+    "io_cpu_ratio": 0.07074038837249512
+  },
+  "candidate_metrics": [
+    {
+      "max_depth": 3,
+      "min_samples_leaf": 10,
+      "validation_accuracy": 0.8133333333333334,
+      "validation_mean_regret": 0.01945544138421465
+    },
+    {
+      "max_depth": 3,
+      "min_samples_leaf": 5,
+      "validation_accuracy": 0.8133333333333334,
+      "validation_mean_regret": 0.01945544138421465
+    },
+    {
+      "max_depth": 3,
+      "min_samples_leaf": 1,
+      "validation_accuracy": 0.8133333333333334,
+      "validation_mean_regret": 0.01945544138421465
+    },
+    {
+      "max_depth": 5,
+      "min_samples_leaf": 10,
+      "validation_accuracy": 0.7946666666666666,
+      "validation_mean_regret": 0.022277433415662466
+    },
+    {
+      "max_depth": 5,
+      "min_samples_leaf": 5,
+      "validation_accuracy": 0.8,
+      "validation_mean_regret": 0.02066619855939309
+    },
+    {
+      "max_depth": 5,
+      "min_samples_leaf": 1,
+      "validation_accuracy": 0.7866666666666666,
+      "validation_mean_regret": 0.023093137291304498
+    },
+    {
+      "max_depth": 8,
+      "min_samples_leaf": 10,
+      "validation_accuracy": 0.784,
+      "validation_mean_regret": 0.02600268422003286
+    },
+    {
+      "max_depth": 8,
+      "min_samples_leaf": 5,
+      "validation_accuracy": 0.784,
+      "validation_mean_regret": 0.02571763494020118
+    },
+    {
+      "max_depth": 8,
+      "min_samples_leaf": 1,
+      "validation_accuracy": 0.744,
+      "validation_mean_regret": 0.03330607940845741
+    },
+    {
+      "max_depth": null,
+      "min_samples_leaf": 10,
+      "validation_accuracy": 0.768,
+      "validation_mean_regret": 0.02910186139805552
+    },
+    {
+      "max_depth": null,
+      "min_samples_leaf": 5,
+      "validation_accuracy": 0.736,
+      "validation_mean_regret": 0.03205796105744548
+    },
+    {
+      "max_depth": null,
+      "min_samples_leaf": 1,
+      "validation_accuracy": 0.6906666666666667,
+      "validation_mean_regret": 0.04328103128153711
+    }
+  ]
+}
