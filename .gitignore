@@ -5,3 +5,4 @@ __pycache__/
 artifacts/*.joblib
 artifacts/*.csv
 results/evaluation.csv
+results/latency.csv

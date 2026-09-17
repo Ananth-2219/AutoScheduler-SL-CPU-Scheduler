@@ -24,9 +24,7 @@ ALGORITHMS = {
     ),
 }
 
-SELECTOR_ALGORITHMS = {
-    name: config for name, config in ALGORITHMS.items() if name != "Priority RR"
-}
+SELECTOR_ALGORITHMS = ALGORITHMS
 
 SCORE_WEIGHTS = {
     "avg_waiting_time": 0.30,

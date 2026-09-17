@@ -10,7 +10,11 @@ from autoscheduler.features import extract_features
 from autoscheduler.workloads import PROFILES, generate_workload
 
 
-def build_dataset(samples_per_profile: int = 500, seed: int = 42) -> list[dict]:
+def build_dataset(
+    samples_per_profile: int = 500,
+    seed: int = 42,
+    priority_rr_config: dict | None = None,
+) -> list[dict]:
     if samples_per_profile <= 0:
         raise ValueError("samples_per_profile must be positive")
 
@@ -20,7 +24,11 @@ def build_dataset(samples_per_profile: int = 500, seed: int = 42) -> list[dict]:
             workload_seed = seed * 10_000_000 + profile_index * 1_000_000 + sample_index
             workload = generate_workload(profile, workload_seed)
             label, scores = oracle_label(
-                compare_algorithms(workload.processes, algorithms=SELECTOR_ALGORITHMS)
+                compare_algorithms(
+                    workload.processes,
+                    priority_rr_config,
+                    algorithms=SELECTOR_ALGORITHMS,
+                )
             )
             row = extract_features(workload.processes)
             row.update({"profile": profile, "seed": workload_seed, "label": label})

@@ -5,11 +5,13 @@ from __future__ import annotations
 import csv
 import json
 import os
+import random
 from pathlib import Path
 from statistics import mean, median, pstdev
 
 from autoscheduler.adaptive import run_adaptive
 from autoscheduler.evaluation import ALGORITHMS, compare_algorithms, oracle_label
+from autoscheduler.fairness import FAIRNESS_FIELDS, aggregate_fairness
 from autoscheduler.features import FEATURE_NAMES
 from autoscheduler.workloads import PROFILES, generate_workload
 
@@ -34,17 +36,45 @@ def _confusion_matrix(rows: list[dict]) -> dict[str, dict[str, int]]:
     }
 
 
+def paired_bootstrap_ci(values: list[float], samples: int = 10_000, seed: int = 2027) -> dict:
+    if not values or samples <= 0:
+        raise ValueError("values and samples must be non-empty and positive")
+    randomizer = random.Random(seed)
+    count = len(values)
+    bootstrapped = sorted(
+        sum(values[randomizer.randrange(count)] for _ in range(count)) / count
+        for _ in range(samples)
+    )
+
+    def percentile(fraction: float) -> float:
+        position = (len(bootstrapped) - 1) * fraction
+        low = int(position)
+        high = min(low + 1, len(bootstrapped) - 1)
+        return bootstrapped[low] + (bootstrapped[high] - bootstrapped[low]) * (position - low)
+
+    return {"mean": mean(values), "ci_low": percentile(0.025), "ci_high": percentile(0.975)}
+
+
 def evaluate_model(
-    model, samples_per_profile: int = 200, seed: int = 2026, priority_rr_config: dict | None = None
+    model,
+    samples_per_profile: int = 200,
+    seed: int = 2026,
+    priority_rr_config: dict | None = None,
+    frozen_static_baseline: str | None = None,
+    bootstrap_samples: int = 10_000,
+    bootstrap_seed: int = 2027,
 ) -> tuple[list[dict], dict]:
     rows = []
+    fairness_samples = {algorithm: [] for algorithm in ALGORITHMS}
     for profile_index, profile in enumerate(PROFILES):
         for sample_index in range(samples_per_profile):
             workload_seed = seed * 10_000_000 + profile_index * 1_000_000 + sample_index
             workload = generate_workload(profile, workload_seed)
             results = compare_algorithms(workload.processes, priority_rr_config)
+            for algorithm, result in results.items():
+                fairness_samples[algorithm].extend(result.process_metrics)
             oracle, scores = oracle_label(results)
-            adaptive = run_adaptive(workload.processes, model)
+            adaptive = run_adaptive(workload.processes, model, priority_rr_config)
             selected = adaptive.selected_algorithm
             row = {
                 "profile": profile,
@@ -109,6 +139,7 @@ def evaluate_model(
             "mean_context_switch_time": mean(
                 row[f"switch_time_{algorithm.lower().replace(' ', '_')}"] for row in rows
             ),
+            **aggregate_fairness(fairness_samples[algorithm]),
         }
         for algorithm in ALGORITHMS
     }
@@ -136,6 +167,22 @@ def evaluate_model(
     }
     summary["mean_static_scores"] = static_scores
     summary["best_static_algorithm"] = min(static_scores, key=static_scores.get)
+    baseline = frozen_static_baseline or summary["best_static_algorithm"]
+    if baseline not in ALGORITHMS:
+        raise ValueError(f"unknown frozen static baseline: {baseline}")
+    summary["frozen_static_baseline"] = baseline
+    summary["paired_score_difference"] = paired_bootstrap_ci(
+        [row[_score_column(row["selected"])] - row[_score_column(baseline)] for row in rows],
+        bootstrap_samples,
+        bootstrap_seed,
+    )
+    for profile, profile_summary in summary["per_profile"].items():
+        group = [row for row in rows if row["profile"] == profile]
+        profile_summary["paired_score_difference"] = paired_bootstrap_ci(
+            [row[_score_column(row["selected"])] - row[_score_column(baseline)] for row in group],
+            bootstrap_samples,
+            bootstrap_seed,
+        )
     summary["mean_adaptive_score"] = adaptive_summary["mean_score"]
     summary["mean_oracle_score"] = summary["oracle"]["mean_score"]
     best_static_score = static_scores[summary["best_static_algorithm"]]
@@ -144,7 +191,11 @@ def evaluate_model(
     )
     summary["adaptive_beats_best_static"] = summary["mean_adaptive_score"] < best_static_score
     summary["adaptive_beats_sjf"] = adaptive_summary["mean_score"] < constant_sjf["mean_score"]
-    summary["eligible_for_next_adaptive_phase"] = summary["adaptive_beats_sjf"]
+    difference = summary["paired_score_difference"]
+    summary["adaptive_statistically_beats_static"] = (
+        difference["mean"] < 0 and difference["ci_high"] < 0
+    )
+    summary["eligible_for_next_adaptive_phase"] = summary["adaptive_statistically_beats_static"]
     priority_rr = static_policies["Priority RR"]
     sjf = static_policies["SJF"]
     summary["priority_rr_beats_sjf"] = (
@@ -176,6 +227,11 @@ def save_evaluation(rows: list[dict], summary: dict, output_dir: str | Path) -> 
             summary["feature_importance"].items(), key=lambda item: item[1], reverse=True
         ):
             writer.writerow({"feature": feature, "importance": importance})
+    with (output_dir / "fairness_metrics.csv").open("w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=("algorithm", *FAIRNESS_FIELDS))
+        writer.writeheader()
+        for algorithm, metrics in summary["static_policies"].items():
+            writer.writerow({"algorithm": algorithm, **{field: metrics[field] for field in FAIRNESS_FIELDS}})
 
     cache_dir = Path(".cache/matplotlib").resolve()
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -213,4 +269,26 @@ def save_evaluation(rows: list[dict], summary: dict, output_dir: str | Path) -> 
     importance_axis.set_xlabel("Decision-tree importance")
     figure.tight_layout()
     figure.savefig(output_dir / "diagnostics.png")
+    plt.close(figure)
+
+    figure, axes = plt.subplots(2, 2, figsize=(11, 7))
+    fairness = summary["static_policies"]
+    labels = list(fairness)
+
+    def chart(axis, fields, title):
+        width = 0.8 / len(fields)
+        for index, field in enumerate(fields):
+            values = [fairness[label][field] or 0 for label in labels]
+            positions = [position + index * width for position in range(len(labels))]
+            axis.bar(positions, values, width=width, label=field.replace("_", " "))
+        axis.set_title(title)
+        axis.set_xticks([position + width * (len(fields) - 1) / 2 for position in range(len(labels))], labels, rotation=25)
+        axis.legend(fontsize="small")
+
+    chart(axes[0, 0], ("p95_waiting_time", "max_waiting_time"), "Waiting time")
+    chart(axes[0, 1], ("starvation_count",), "Starvation count")
+    chart(axes[1, 0], ("priority_mean_waiting_time", "priority_max_waiting_time"), "Priority classes 1-2")
+    chart(axes[1, 1], ("post_io_mean_response_time", "post_io_max_response_time"), "Post-I/O response")
+    figure.tight_layout()
+    figure.savefig(output_dir / "fairness.png")
     plt.close(figure)

@@ -1,5 +1,9 @@
 # AutoScheduler Priority-RR Experiment
 
+> Superseded for primary research claims by
+> `results/five_policy_consistent/REPORT.md`. This historical run used a
+> four-policy training objective and five-policy evaluation objective.
+
 ## Method
 
 This single-CPU experiment adds Priority Round Robin as a deterministic static
@@ -22,7 +26,8 @@ unchanged.
 
 ## Results
 
-- Best static baseline: Round Robin, mean score 0.1061
+- Best static baseline: Round Robin, mean score 0.1108
+- Oracle mean score: 0.1061
 - SJF: mean score 0.1577; maximum wait 279 ticks
 - Priority-RR: mean score 0.7744; maximum wait 605 ticks
 - Priority-RR mean regret: 0.6683

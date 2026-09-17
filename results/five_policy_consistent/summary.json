@@ -1,19 +1,19 @@
 {
   "samples": 1000,
-  "accuracy": 0.181,
-  "mean_regret": 0.05160887217743689,
-  "median_regret": 0.05131296861676551,
-  "regret_stddev": 0.04063605849930718,
-  "mean_inference_ms": 0.08226254893816076,
-  "mean_score": 0.15768619581374788,
+  "accuracy": 0.792,
+  "mean_regret": 0.004991133074590549,
+  "median_regret": 0.0,
+  "regret_stddev": 0.01402178490353624,
+  "mean_inference_ms": 0.07286159499790301,
+  "mean_score": 0.11106845671090154,
   "adaptive": {
     "samples": 1000,
-    "accuracy": 0.181,
-    "mean_regret": 0.05160887217743689,
-    "median_regret": 0.05131296861676551,
-    "regret_stddev": 0.04063605849930718,
-    "mean_inference_ms": 0.08226254893816076,
-    "mean_score": 0.15768619581374788
+    "accuracy": 0.792,
+    "mean_regret": 0.004991133074590549,
+    "median_regret": 0.0,
+    "regret_stddev": 0.01402178490353624,
+    "mean_inference_ms": 0.07286159499790301,
+    "mean_score": 0.11106845671090154
   },
   "constant_sjf": {
     "samples": 1000,
@@ -98,14 +98,14 @@
   },
   "feature_importance": {
     "process_count": 0.0,
-    "arrival_rate": 0.0,
-    "burst_mean": 0.07687015309769107,
-    "burst_variance": 0.3630939121340318,
-    "short_job_ratio": 0.0,
-    "priority_mean": 0.03552213935602974,
-    "priority_variance": 0.0,
-    "io_frequency": 0.4537734070397524,
-    "io_cpu_ratio": 0.07074038837249512
+    "arrival_rate": 0.018938814366741996,
+    "burst_mean": 0.1065904031033865,
+    "burst_variance": 0.09276033449181265,
+    "short_job_ratio": 0.7257689752389199,
+    "priority_mean": 0.0,
+    "priority_variance": 0.05594147279913902,
+    "io_frequency": 0.0,
+    "io_cpu_ratio": 0.0
   },
   "oracle_label_distribution": {
     "interactive": {
@@ -147,36 +147,36 @@
   "selected_label_distribution": {
     "interactive": {
       "FCFS": 0,
-      "SJF": 200,
-      "Round Robin": 0,
+      "SJF": 0,
+      "Round Robin": 200,
       "Priority": 0,
       "Priority RR": 0
     },
     "batch": {
       "FCFS": 0,
-      "SJF": 200,
-      "Round Robin": 0,
+      "SJF": 0,
+      "Round Robin": 200,
       "Priority": 0,
       "Priority RR": 0
     },
     "cpu_intensive": {
       "FCFS": 0,
-      "SJF": 200,
-      "Round Robin": 0,
+      "SJF": 1,
+      "Round Robin": 199,
       "Priority": 0,
       "Priority RR": 0
     },
     "io_intensive": {
       "FCFS": 0,
-      "SJF": 200,
-      "Round Robin": 0,
+      "SJF": 0,
+      "Round Robin": 200,
       "Priority": 0,
       "Priority RR": 0
     },
     "mixed": {
       "FCFS": 0,
-      "SJF": 200,
-      "Round Robin": 0,
+      "SJF": 23,
+      "Round Robin": 177,
       "Priority": 0,
       "Priority RR": 0
     }
@@ -184,22 +184,22 @@
   "confusion_matrix": {
     "FCFS": {
       "FCFS": 0,
-      "SJF": 25,
-      "Round Robin": 0,
+      "SJF": 0,
+      "Round Robin": 25,
       "Priority": 0,
       "Priority RR": 0
     },
     "SJF": {
       "FCFS": 0,
-      "SJF": 181,
-      "Round Robin": 0,
+      "SJF": 11,
+      "Round Robin": 170,
       "Priority": 0,
       "Priority RR": 0
     },
     "Round Robin": {
       "FCFS": 0,
-      "SJF": 794,
-      "Round Robin": 0,
+      "SJF": 13,
+      "Round Robin": 781,
       "Priority": 0,
       "Priority RR": 0
     },
@@ -221,48 +221,73 @@
   "per_profile": {
     "interactive": {
       "samples": 200,
-      "accuracy": 0.42,
-      "mean_regret": 0.025659741098437466,
-      "median_regret": 0.008063537943018548,
-      "regret_stddev": 0.03431722065301325,
-      "mean_inference_ms": 0.07941146002849564,
-      "mean_score": 0.10271945005823216
+      "accuracy": 0.55,
+      "mean_regret": 0.01143486618424505,
+      "median_regret": 0.0,
+      "regret_stddev": 0.019484696190078664,
+      "mean_inference_ms": 0.08115715500480292,
+      "mean_score": 0.08849457514403974,
+      "paired_score_difference": {
+        "mean": 0.0,
+        "ci_low": 0.0,
+        "ci_high": 0.0
+      }
     },
     "batch": {
       "samples": 200,
-      "accuracy": 0,
-      "mean_regret": 0.07859672463915342,
-      "median_regret": 0.07836604566300598,
-      "regret_stddev": 0.02715628828426948,
-      "mean_inference_ms": 0.07805040997482138,
-      "mean_score": 0.20435165682802328
+      "accuracy": 1,
+      "mean_regret": 0.0,
+      "median_regret": 0.0,
+      "regret_stddev": 0.0,
+      "mean_inference_ms": 0.07152937500222833,
+      "mean_score": 0.12575493218886988,
+      "paired_score_difference": {
+        "mean": 0.0,
+        "ci_low": 0.0,
+        "ci_high": 0.0
+      }
     },
     "cpu_intensive": {
       "samples": 200,
-      "accuracy": 0,
-      "mean_regret": 0.083973722013706,
-      "median_regret": 0.08262847309032352,
-      "regret_stddev": 0.028630953255284704,
-      "mean_inference_ms": 0.07337271501455689,
-      "mean_score": 0.2098233468056454
+      "accuracy": 0.995,
+      "mean_regret": 8.211752968412409e-05,
+      "median_regret": 0.0,
+      "regret_stddev": 0.0011584103105563145,
+      "mean_inference_ms": 0.07287941000186038,
+      "mean_score": 0.12593174232162355,
+      "paired_score_difference": {
+        "mean": 8.211752968412409e-05,
+        "ci_low": 0.0,
+        "ci_high": 0.00024635258905237223
+      }
     },
     "io_intensive": {
       "samples": 200,
-      "accuracy": 0.25,
-      "mean_regret": 0.03668081789201073,
-      "median_regret": 0.02569719837295293,
-      "regret_stddev": 0.03827801401848582,
-      "mean_inference_ms": 0.08658668488351395,
-      "mean_score": 0.11268136748425082
+      "accuracy": 0.655,
+      "mean_regret": 0.0081932120433368,
+      "median_regret": 0.0,
+      "regret_stddev": 0.015635701108272546,
+      "mean_inference_ms": 0.06668414499472419,
+      "mean_score": 0.0841937616355769,
+      "paired_score_difference": {
+        "mean": 0.0,
+        "ci_low": 0.0,
+        "ci_high": 0.0
+      }
     },
     "mixed": {
       "samples": 200,
-      "accuracy": 0.235,
-      "mean_regret": 0.03313335524387686,
-      "median_regret": 0.026005181793298734,
-      "regret_stddev": 0.03229545112981575,
-      "mean_inference_ms": 0.09389147478941595,
-      "mean_score": 0.15885515789258772
+      "accuracy": 0.76,
+      "mean_regret": 0.0052454696156867715,
+      "median_regret": 0.0,
+      "regret_stddev": 0.016022867222054656,
+      "mean_inference_ms": 0.07205788998589924,
+      "mean_score": 0.13096727226439764,
+      "paired_score_difference": {
+        "mean": 0.0013787251712428662,
+        "ci_low": -0.0005999009787397458,
+        "ci_high": 0.003649139533970916
+      }
     }
   },
   "mean_static_scores": {
@@ -273,101 +298,23 @@
     "Priority RR": 0.7743663322374539
   },
   "best_static_algorithm": "Round Robin",
-  "mean_adaptive_score": 0.15768619581374788,
+  "frozen_static_baseline": "Round Robin",
+  "paired_score_difference": {
+    "mean": 0.0002921685401853981,
+    "ci_low": -0.00010535577685215335,
+    "ci_high": 0.0007556178254535573
+  },
+  "mean_adaptive_score": 0.11106845671090154,
   "mean_oracle_score": 0.10607732363631099,
-  "adaptive_improvement_vs_best_static": -0.04690990764303174,
+  "adaptive_improvement_vs_best_static": -0.0002921685401854057,
   "adaptive_beats_best_static": false,
-  "adaptive_beats_sjf": false,
+  "adaptive_beats_sjf": true,
+  "adaptive_statistically_beats_static": false,
   "eligible_for_next_adaptive_phase": false,
   "priority_rr_beats_sjf": false,
   "priority_rr_config": {
     "quantum": 1,
     "aging_interval": 4,
     "context_switch_cost": 1
-  },
-  "priority_rr_tuning": {
-    "samples": 375,
-    "candidates": [
-      {
-        "quantum": 1,
-        "aging_interval": 4,
-        "context_switch_cost": 1,
-        "validation_mean_score": 0.7763900254204434,
-        "validation_sjf_mean_score": 0.15939885459745562,
-        "validation_max_waiting_time": 629
-      },
-      {
-        "quantum": 1,
-        "aging_interval": 8,
-        "context_switch_cost": 1,
-        "validation_mean_score": 0.8078426735128788,
-        "validation_sjf_mean_score": 0.16034388106785644,
-        "validation_max_waiting_time": 629
-      },
-      {
-        "quantum": 1,
-        "aging_interval": 12,
-        "context_switch_cost": 1,
-        "validation_mean_score": 0.8413742320502596,
-        "validation_sjf_mean_score": 0.1607810812534355,
-        "validation_max_waiting_time": 595
-      },
-      {
-        "quantum": 2,
-        "aging_interval": 4,
-        "context_switch_cost": 1,
-        "validation_mean_score": 0.7943047518599211,
-        "validation_sjf_mean_score": 0.16672408920613435,
-        "validation_max_waiting_time": 468
-      },
-      {
-        "quantum": 2,
-        "aging_interval": 8,
-        "context_switch_cost": 1,
-        "validation_mean_score": 0.8183825061924856,
-        "validation_sjf_mean_score": 0.16716249271818728,
-        "validation_max_waiting_time": 469
-      },
-      {
-        "quantum": 2,
-        "aging_interval": 12,
-        "context_switch_cost": 1,
-        "validation_mean_score": 0.8512562849308698,
-        "validation_sjf_mean_score": 0.16761443202509255,
-        "validation_max_waiting_time": 484
-      },
-      {
-        "quantum": 4,
-        "aging_interval": 4,
-        "context_switch_cost": 1,
-        "validation_mean_score": 0.8197622598509491,
-        "validation_sjf_mean_score": 0.17595881931554513,
-        "validation_max_waiting_time": 382
-      },
-      {
-        "quantum": 4,
-        "aging_interval": 8,
-        "context_switch_cost": 1,
-        "validation_mean_score": 0.8361771708308589,
-        "validation_sjf_mean_score": 0.17595278245017226,
-        "validation_max_waiting_time": 381
-      },
-      {
-        "quantum": 4,
-        "aging_interval": 12,
-        "context_switch_cost": 1,
-        "validation_mean_score": 0.8644006848494591,
-        "validation_sjf_mean_score": 0.17630913004369034,
-        "validation_max_waiting_time": 387
-      }
-    ],
-    "selected": {
-      "quantum": 1,
-      "aging_interval": 4,
-      "context_switch_cost": 1,
-      "validation_mean_score": 0.7763900254204434,
-      "validation_sjf_mean_score": 0.15939885459745562,
-      "validation_max_waiting_time": 629
-    }
   }
 }

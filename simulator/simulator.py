@@ -24,11 +24,13 @@ class ProcessMetrics:
     pid: str
     arrival_time: int
     burst_time: int
+    priority: int
     start_time: int
     completion_time: int
     turnaround_time: int
     waiting_time: int
     response_time: int
+    post_io_response_times: Tuple[int, ...]
 
 
 @dataclass
@@ -73,11 +75,13 @@ def compute_metrics(scheduled: List[Process]) -> List[ProcessMetrics]:
             pid             = p.pid,
             arrival_time    = p.arrival_time,
             burst_time      = p.burst_time,
+            priority        = p.priority,
             start_time      = p.start_time,
             completion_time = p.completion_time,
             turnaround_time = turnaround,
             waiting_time    = waiting,
             response_time   = response,
+            post_io_response_times=tuple(p.post_io_response_times),
         ))
     return metrics
 

@@ -2,6 +2,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import json
+import csv
 from pathlib import Path
 
 
@@ -34,6 +36,9 @@ class CliTests(unittest.TestCase):
             self.assertIn("Validation regret", trained.stdout)
             self.assertTrue(model.exists())
             self.assertTrue(dataset.exists())
+            model_report = json.loads(model.with_suffix(".json").read_text())
+            self.assertEqual(len(model_report["priority_rr_tuning"]["candidates"]), 9)
+            self.assertIn(model_report["static_baseline"], model_report["policy_set"])
 
             compared = self.run_cli(
                 "compare", "--profile", "mixed", "--seed", 77, "--model", model
@@ -49,19 +54,62 @@ class CliTests(unittest.TestCase):
                 model,
                 "--output",
                 results,
-                "--tune-priority-rr",
-                "--tune-samples-per-profile",
-                5,
             )
             self.assertIn("Best static", evaluated.stdout)
             self.assertIn("Adaptive beats SJF", evaluated.stdout)
             self.assertIn("Priority RR beats SJF", evaluated.stdout)
+            self.assertIn("Statistically beats static", evaluated.stdout)
             self.assertTrue((results / "evaluation.csv").exists())
             self.assertTrue((results / "summary.json").exists())
             self.assertTrue((results / "scores.png").exists())
             self.assertTrue((results / "confusion_matrix.csv").exists())
             self.assertTrue((results / "feature_importance.csv").exists())
             self.assertTrue((results / "diagnostics.png").exists())
+            self.assertTrue((results / "fairness_metrics.csv").exists())
+            self.assertTrue((results / "fairness.png").exists())
+            summary = json.loads((results / "summary.json").read_text())
+            self.assertEqual(summary["frozen_static_baseline"], model_report["static_baseline"])
+
+            latency = self.run_cli(
+                "latency",
+                "--samples-per-profile",
+                1,
+                "--warmups",
+                0,
+                "--model",
+                model,
+                "--score-summary",
+                results / "summary.json",
+                "--output",
+                results,
+            )
+            self.assertIn("Recommended policy", latency.stdout)
+            self.assertTrue((results / "latency.csv").exists())
+            self.assertTrue((results / "latency_summary.json").exists())
+            self.assertTrue((results / "latency.png").exists())
+            with (results / "latency.csv").open(newline="", encoding="utf-8") as file:
+                self.assertEqual(len(list(csv.DictReader(file))), 15)
+
+            dynamic_model = root / "dynamic.joblib"
+            dynamic_dataset = root / "dynamic.csv"
+            dynamic_results = root / "dynamic-results"
+            dynamic_trained = self.run_cli(
+                "dynamic-train",
+                "--traces", 2,
+                "--tuning-traces", 1,
+                "--model", dynamic_model,
+                "--dataset", dynamic_dataset,
+            )
+            self.assertIn("Router config", dynamic_trained.stdout)
+            self.assertTrue(dynamic_model.exists())
+
+            dynamic_evaluated = self.run_cli(
+                "dynamic-evaluate", "--traces", 2, "--model", dynamic_model, "--output", dynamic_results
+            )
+            self.assertIn("P95 response gate", dynamic_evaluated.stdout)
+            self.assertTrue((dynamic_results / "dynamic_evaluation.csv").exists())
+            self.assertTrue((dynamic_results / "dynamic_summary.json").exists())
+            self.assertTrue((dynamic_results / "dynamic_diagnostics.png").exists())
 
 
 if __name__ == "__main__":

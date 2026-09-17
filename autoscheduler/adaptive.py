@@ -27,7 +27,9 @@ def select_scheduler(features: dict[str, float], model) -> str:
     return prediction
 
 
-def run_adaptive(processes: Iterable[Process], model) -> AdaptiveResult:
+def run_adaptive(
+    processes: Iterable[Process], model, priority_rr_config: dict | None = None
+) -> AdaptiveResult:
     processes = list(processes)
     features = extract_features(processes)
     started = perf_counter()
@@ -37,5 +39,5 @@ def run_adaptive(processes: Iterable[Process], model) -> AdaptiveResult:
         selected,
         features,
         inference_ms,
-        run_algorithm(selected, processes),
+        run_algorithm(selected, processes, priority_rr_config),
     )

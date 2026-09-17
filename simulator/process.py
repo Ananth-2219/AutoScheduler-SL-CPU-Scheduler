@@ -5,7 +5,7 @@ Defines the Process data model used by all scheduling algorithms.
 """
 
 from dataclasses import dataclass, field
-from typing import Tuple
+from typing import List, Tuple
 
 
 @dataclass
@@ -35,6 +35,7 @@ class Process:
     start_time: int = field(default=-1, init=False)
     completion_time: int = field(default=-1, init=False)
     burst_index: int = field(default=0, init=False)
+    post_io_response_times: List[int] = field(default_factory=list, init=False)
 
     def __post_init__(self):
         if not self.pid:
@@ -69,3 +70,4 @@ class Process:
         self.completion_time = -1
         self.burst_index = 0
         self.remaining_time = self.cpu_bursts[0]
+        self.post_io_response_times.clear()
