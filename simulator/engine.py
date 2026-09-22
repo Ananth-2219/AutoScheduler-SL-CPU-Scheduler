@@ -20,6 +20,8 @@ class _Ready:
     process: Process
     priority: int
     from_io: bool
+    queue_level: int = 0
+    quantum_used: int = 0
 
 
 def simulate(
@@ -30,12 +32,19 @@ def simulate(
     context_switch_cost: int = 0,
     decision_times_ns: list[int] | None = None,
     preemptive: bool = False,
+    queue_quanta: tuple[int, ...] | None = None,
+    aging_threshold: int | None = None,
 ) -> tuple[List[Process], Timeline]:
     """Run a supported single-CPU policy with CPU/I/O bursts."""
     if policy in {"rr", "priority_rr"} and (quantum is None or quantum <= 0):
         raise ValueError("quantum must be positive")
     if policy == "priority_rr" and (aging_interval is None or aging_interval <= 0):
         raise ValueError("aging_interval must be positive")
+    if policy == "mlfq" and (
+        not queue_quanta or any(value <= 0 for value in queue_quanta)
+        or aging_threshold is None or aging_threshold <= 0
+    ):
+        raise ValueError("MLFQ quanta and aging threshold must be positive")
     if context_switch_cost < 0:
         raise ValueError("context_switch_cost must be non-negative")
     if (policy == "srtf") != preemptive:
@@ -73,7 +82,20 @@ def simulate(
             ready.append(_Ready(ready_time, sequence, process, priority, from_io))
             sequence += 1
 
+    def age_ready() -> None:
+        nonlocal sequence
+        if policy != "mlfq":
+            return
+        for item in sorted(ready, key=lambda candidate: candidate.sequence):
+            if item.queue_level > 0 and current_time - item.time >= (aging_threshold or 1):
+                item.queue_level -= 1
+                item.quantum_used = 0
+                item.time = current_time
+                item.sequence = sequence
+                sequence += 1
+
     def take_ready() -> _Ready:
+        age_ready()
         if policy == "rr":
             index = min(range(len(ready)), key=lambda i: ready[i].sequence)
         elif policy == "priority_rr":
@@ -102,6 +124,8 @@ def simulate(
                     ready[i].process.pid,
                 ),
             )
+        elif policy == "mlfq":
+            index = min(range(len(ready)), key=lambda i: (ready[i].queue_level, ready[i].sequence))
         else:
             index = min(range(len(ready)), key=lambda i: (ready[i].time, ready[i].process.pid))
         return ready.pop(index)
@@ -119,6 +143,7 @@ def simulate(
         if decision_times_ns is not None:
             decision_times_ns.append(perf_counter_ns() - started)
         process = ready_process.process
+        first_run = True
         if last_pid is not None and last_pid != process.pid and context_switch_cost:
             timeline.append(("CS", current_time, current_time + context_switch_cost))
             current_time += context_switch_cost
@@ -132,22 +157,51 @@ def simulate(
             run_for = process.remaining_time
             if policy in {"rr", "priority_rr"}:
                 run_for = min(run_for, quantum or run_for)
+            elif policy == "mlfq":
+                level_quantum = (queue_quanta or ())[ready_process.queue_level]
+                run_for = min(run_for, level_quantum - ready_process.quantum_used)
+                if ready_process.queue_level > 0:
+                    next_events = ([pending[0].arrival_time] if pending else [])
+                    next_events.extend(wake_time for wake_time, *_ in blocked)
+                    next_events.extend(
+                        item.time + (aging_threshold or 1)
+                        for item in ready
+                        if item.queue_level > 0
+                    )
+                    if next_events:
+                        run_for = min(run_for, max(0, min(next_events) - current_time))
             elif preemptive:
                 next_events = ([pending[0].arrival_time] if pending else [])
                 next_events.extend(wake_time for wake_time, *_ in blocked)
                 if next_events:
                     run_for = min(run_for, min(next_events) - current_time)
             end_time = current_time + run_for
-            if preemptive and timeline and timeline[-1][0] == process.pid and timeline[-1][2] == current_time:
+            if (preemptive or (policy == "mlfq" and not first_run)) and timeline and timeline[-1][0] == process.pid and timeline[-1][2] == current_time:
                 timeline[-1] = (process.pid, timeline[-1][1], end_time)
             else:
                 timeline.append((process.pid, current_time, end_time))
             process.remaining_time -= run_for
+            if policy == "mlfq":
+                ready_process.quantum_used += run_for
             current_time = end_time
             last_pid = process.pid
             release(current_time)
+            first_run = False
             if not preemptive or not process.remaining_time:
-                break
+                if policy != "mlfq":
+                    break
+            if policy == "mlfq":
+                level_quantum = (queue_quanta or ())[ready_process.queue_level]
+                if ready_process.quantum_used >= level_quantum:
+                    break
+                started = perf_counter_ns()
+                age_ready()
+                should_preempt = any(item.queue_level < ready_process.queue_level for item in ready)
+                if decision_times_ns is not None:
+                    decision_times_ns.append(perf_counter_ns() - started)
+                if should_preempt:
+                    break
+                continue
             started = perf_counter_ns()
             should_preempt = any(item.process.remaining_time < process.remaining_time for item in ready)
             if decision_times_ns is not None:
@@ -156,7 +210,17 @@ def simulate(
                 break
 
         if process.remaining_time:
-            ready.append(_Ready(current_time, sequence, process, process.priority, False))
+            if policy == "mlfq":
+                level_quantum = (queue_quanta or ())[ready_process.queue_level]
+                if ready_process.quantum_used >= level_quantum:
+                    ready_process.queue_level = min(ready_process.queue_level + 1, len(queue_quanta or ()) - 1)
+                    ready_process.quantum_used = 0
+                ready.append(_Ready(
+                    current_time, sequence, process, process.priority, False,
+                    ready_process.queue_level, ready_process.quantum_used,
+                ))
+            else:
+                ready.append(_Ready(current_time, sequence, process, process.priority, False))
             sequence += 1
             continue
 

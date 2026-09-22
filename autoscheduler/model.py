@@ -13,10 +13,9 @@ from autoscheduler.features import FEATURE_NAMES
 def _imports():
     import joblib
     from sklearn.metrics import accuracy_score
-    from sklearn.model_selection import train_test_split
     from sklearn.tree import DecisionTreeClassifier
 
-    return joblib, accuracy_score, train_test_split, DecisionTreeClassifier
+    return joblib, accuracy_score, DecisionTreeClassifier
 
 
 def _score_column(algorithm: str) -> str:
@@ -35,6 +34,46 @@ def _candidate_key(metrics: dict, depth_rank: int) -> tuple:
     return (metrics["validation_mean_regret"], depth_rank, -metrics["min_samples_leaf"])
 
 
+def _split_indexes(rows: list[dict], random_state: int, group_key: str | None = None) -> tuple[list[int], list[int], list[int]]:
+    from sklearn.model_selection import GroupShuffleSplit, train_test_split
+
+    indexes = list(range(len(rows)))
+    if group_key is not None:
+        groups = [row[group_key] for row in rows]
+        if len(set(groups)) < 4:
+            raise ValueError("grouped training requires at least four distinct traces")
+        train_positions, holdout_positions = next(
+            GroupShuffleSplit(n_splits=1, test_size=0.30, random_state=random_state).split(indexes, groups=groups)
+        )
+        train_indexes = [indexes[position] for position in train_positions]
+        holdout_indexes = [indexes[position] for position in holdout_positions]
+        validation_positions, test_positions = next(
+            GroupShuffleSplit(n_splits=1, test_size=0.50, random_state=random_state).split(
+                holdout_indexes, groups=[groups[index] for index in holdout_indexes]
+            )
+        )
+        validation_indexes = [holdout_indexes[position] for position in validation_positions]
+        test_indexes = [holdout_indexes[position] for position in test_positions]
+        train_groups, validation_groups, test_groups = (
+            {groups[index] for index in split}
+            for split in (train_indexes, validation_indexes, test_indexes)
+        )
+        assert not (train_groups & validation_groups or train_groups & test_groups or validation_groups & test_groups)
+        return train_indexes, validation_indexes, test_indexes
+
+    labels = [row["label"] for row in rows]
+    stratify = labels if min(Counter(labels).values()) >= 2 else None
+    train_indexes, holdout_indexes = train_test_split(
+        indexes, test_size=0.30, random_state=random_state, stratify=stratify
+    )
+    holdout_labels = [labels[index] for index in holdout_indexes]
+    holdout_stratify = holdout_labels if min(Counter(holdout_labels).values()) >= 2 else None
+    validation_indexes, test_indexes = train_test_split(
+        holdout_indexes, test_size=0.50, random_state=random_state, stratify=holdout_stratify
+    )
+    return train_indexes, validation_indexes, test_indexes
+
+
 def train_model(
     rows: list[dict],
     model_path: str | Path,
@@ -42,24 +81,13 @@ def train_model(
     priority_rr_config: dict | None = None,
     feature_names: tuple[str, ...] = FEATURE_NAMES,
     metadata: dict | None = None,
+    group_key: str | None = None,
 ) -> dict:
     if len(rows) < 20:
         raise ValueError("at least 20 labeled workloads are required")
-    joblib, accuracy_score, train_test_split, DecisionTreeClassifier = _imports()
+    joblib, accuracy_score, DecisionTreeClassifier = _imports()
     labels = [row["label"] for row in rows]
-    stratify = labels if min(Counter(labels).values()) >= 2 else None
-    indexes = list(range(len(rows)))
-    train_indexes, holdout_indexes = train_test_split(
-        indexes, test_size=0.30, random_state=random_state, stratify=stratify
-    )
-    holdout_labels = [labels[index] for index in holdout_indexes]
-    holdout_stratify = holdout_labels if min(Counter(holdout_labels).values()) >= 2 else None
-    validation_indexes, test_indexes = train_test_split(
-        holdout_indexes,
-        test_size=0.50,
-        random_state=random_state,
-        stratify=holdout_stratify,
-    )
+    train_indexes, validation_indexes, test_indexes = _split_indexes(rows, random_state, group_key)
     train_rows = [rows[index] for index in train_indexes]
     validation_rows = [rows[index] for index in validation_indexes]
     test_rows = [rows[index] for index in test_indexes]
@@ -124,7 +152,7 @@ def train_model(
         **(metadata or {}),
     }
     joblib.dump({"model": final_model, "features": feature_names, "metadata": bundle_metadata}, model_path)
-    return {
+    report = {
         "rows": len(rows),
         "random_state": random_state,
         "split": {"train": 0.70, "validation": 0.15, "test": 0.15},
@@ -144,6 +172,15 @@ def train_model(
         },
         "candidate_metrics": candidate_metrics,
     }
+    if group_key is not None:
+        report["split_group_key"] = group_key
+        report["split_trace_counts"] = {
+            name: len({rows[index][group_key] for index in split})
+            for name, split in (
+                ("train", train_indexes), ("validation", validation_indexes), ("test", test_indexes)
+            )
+        }
+    return report
 
 
 def load_model(path: str | Path, feature_names: tuple[str, ...] = FEATURE_NAMES):

@@ -25,6 +25,35 @@ class _FixedSrtfModel:
 
 
 class LearningTests(unittest.TestCase):
+    def test_dynamic_trace_split_is_disjoint_and_reproducible(self):
+        from autoscheduler.model import _split_indexes
+
+        rows = [
+            {"seed": trace, "epoch": epoch, "label": "SJF"}
+            for trace in range(20) for epoch in range(trace % 3 + 1)
+        ]
+        first = _split_indexes(rows, 42, group_key="seed")
+        self.assertEqual(first, _split_indexes(rows, 42, group_key="seed"))
+        groups = [{rows[index]["seed"] for index in split} for split in first]
+        self.assertEqual(list(map(len, groups)), [14, 3, 3])
+        self.assertFalse(groups[0] & groups[1] or groups[0] & groups[2] or groups[1] & groups[2])
+        self.assertEqual(sorted(index for split in first for index in split), list(range(len(rows))))
+        with self.assertRaisesRegex(ValueError, "four distinct"):
+            _split_indexes(rows[:4], 42, group_key="seed")
+
+    def test_static_row_split_keeps_stratification(self):
+        from sklearn.model_selection import train_test_split
+        from autoscheduler.model import _split_indexes
+
+        rows = [{"label": "SJF" if index % 2 else "FCFS"} for index in range(40)]
+        train, holdout = train_test_split(
+            list(range(len(rows))), test_size=0.30, random_state=42,
+            stratify=[row["label"] for row in rows],
+        )
+        actual = _split_indexes(rows, 42)
+        self.assertEqual(actual[0], train)
+        self.assertEqual(set(actual[1]) | set(actual[2]), set(holdout))
+
     def test_candidate_selection_prefers_regret_over_accuracy(self):
         from autoscheduler.model import _candidate_key
 

@@ -76,6 +76,25 @@ def score_results(results: dict[str, SimulationResult]) -> dict[str, float]:
     return scores
 
 
+def score_result_against_reference(
+    result: SimulationResult,
+    reference_results: dict[str, SimulationResult],
+    reference_names=None,
+) -> float:
+    """Score one result using metric bounds frozen by reference policies."""
+    names = tuple(reference_names or reference_results)
+    score = 0.0
+    for metric, weight in SCORE_WEIGHTS.items():
+        values = [getattr(reference_results[name], metric) for name in names]
+        low, high = min(values), max(values)
+        if high == low:
+            continue
+        value = getattr(result, metric)
+        normalized = ((high - value) if metric in {"cpu_utilization", "throughput"} else (value - low)) / (high - low)
+        score += weight * normalized
+    return score
+
+
 def oracle_label(results: dict[str, SimulationResult]) -> tuple[str, dict[str, float]]:
     scores = score_results(results)
     label = min(results, key=lambda name: (scores[name], tuple(ALGORITHMS).index(name)))

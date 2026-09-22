@@ -30,6 +30,18 @@ pip install -r requirements.txt
 
 ## Commands
 
+Open interactive presentation menu:
+
+```bash
+python main.py demo
+```
+
+Use `python main.py demo --no-color` for redirected output or terminals without
+ANSI color support. Menu runs only short live comparisons and reads completed
+research artifacts; it never starts full training or evaluation automatically.
+Choose option `10` for an animated six-policy scheduler race on one generated
+workload. Playback is shortened, but final metrics use complete timelines.
+
 Run the original Phase 1 demonstration:
 
 ```bash
@@ -71,12 +83,19 @@ python main.py dynamic-train
 python main.py dynamic-evaluate
 ```
 
+Evaluate fixed MLFQ and its decision latency:
+
+```bash
+python main.py mlfq-evaluate
+python main.py mlfq-latency
+```
+
 Run a six-policy experiment without replacing historical results:
 
 ```bash
 python main.py train --model results/six_policy/model.joblib --dataset results/six_policy/training.csv
 python main.py evaluate --model results/six_policy/model.joblib --output results/six_policy
-python main.py latency --model results/six_policy/model.joblib --score-summary results/six_policy/summary.json --output results/six_policy
+python main.py latency --model results/six_policy/model.joblib --score-summary results/six_policy/summary.json --output results/six_policy/full_latency
 ```
 
 Use `python main.py <command> --help` to override sample counts, seeds, paths,
@@ -94,6 +113,8 @@ or comparison workload size.
 - `autoscheduler/adaptive.py`: one-time workload classification and execution
 - `autoscheduler/experiments.py`: held-out evaluation and artifacts
 - `autoscheduler/dynamic.py`: state-preserving epoch routing and dynamic experiments
+- `autoscheduler/benefit.py`: observed-state RR-to-SRTF benefit regression
+- `autoscheduler/mlfq_experiment.py`: static MLFQ comparison and decision gates
 - `autoscheduler/cli.py`: train, compare, evaluate, and latency commands
 
 ## Workload Profiles
@@ -195,9 +216,12 @@ adaptive selector does not beat it.
 With six policies (training seed 42, 2,500 workloads; evaluation seed 2026,
 1,000 workloads), Round Robin has mean score 0.13221, SRTF 0.16773, and
 Adaptive 0.13188. The paired Adaptive-minus-frozen-static 95% interval crosses
-zero, so the adaptive statistical gate remains false. A six-policy latency
-smoke run used one sample per profile with no warmups; it is not a full latency
-gate experiment. All outputs are in `results/six_policy/`.
+zero, so the adaptive statistical gate remains false. Full six-policy latency
+results are in `results/six_policy/full_latency/`: seed 3030, 20 measured
+samples per profile, five warmups, and P99 below 10 ms for every measured
+policy at every size. Large-workload P99 is 0.0611 ms for Round Robin and
+6.5507 ms for Adaptive. Round Robin remains recommended. The separate
+one-sample latency smoke artifacts remain in `results/six_policy/`.
 
 ## Dynamic Routing Experiment
 
@@ -219,6 +243,10 @@ epoch length `{5, 10, 20}`, dwell time `{1, 2, 3}` epochs, and confidence
 threshold `{0.0, 0.6, 0.8}` on seed-42 development traces. It selects lowest
 P95 response among candidates whose paired weighted-score confidence interval
 is not worse than Round Robin, then freezes the configuration.
+Dynamic training and tuning now split by trace seed: all epochs from one trace
+stay together across the 70/15/15 train, validation, and test trace groups.
+The saved dynamic model predates this split and has not been retrained; its
+reported accuracy and regret are not leakage-corrected evidence.
 
 `dynamic-evaluate` writes `dynamic_evaluation.csv`, `dynamic_summary.json`, and
 `dynamic_diagnostics.png`. Success requires a negative paired 95% confidence
@@ -226,6 +254,63 @@ interval for Adaptive-minus-RR P95 response, a non-positive upper confidence
 limit for weighted-score difference, and a full routing-path P99 below 10 ms.
 On the 1,000-trace six-policy evaluation (seed 2026), the P95 response gate
 fails, so dynamic routing is ineligible despite passing the other two gates.
+
+## RR-versus-SRTF Benefit Experiment
+
+This conservative experiment starts with a development-tuned Round Robin
+quantum, observes only runtime state for 5, 10, or 20 ticks, then either keeps
+RR or switches once to SRTF. The decision-tree regressor predicts
+`SRTF score - RR score`; SRTF is chosen only when the prediction clears the
+validation-tuned safety margin. Features exclude future arrivals, declared
+total CPU/I/O work, and true remaining burst time.
+
+```bash
+python main.py benefit-train
+python main.py benefit-evaluate
+python main.py benefit-latency
+```
+
+Training uses seed 42 with trace-disjoint 70/15/15 splits. Evaluation uses
+1,000 unseen workloads from seed 4040 and 10,000 paired bootstrap samples from
+seed 4041. Scores use bounds frozen by the original six static policies, so
+adding the selector cannot change RR's normalized score. Latency uses 12, 100,
+and 1,000-process workloads, 20 measured samples per profile, and five warmups.
+
+The ML selector is eligible only if it lowers mean score by at least 1% versus
+tuned RR, its paired 95% confidence interval is entirely below zero, and every
+decision-latency P99 is below 10 ms. RR remains the recommendation when any
+gate fails. Artifacts are written to `results/rr_srtf_benefit/`; prior static
+and dynamic results are preserved.
+
+Seed-4040 result: RR quantum 1, observation window 20, and margin 0.0025 were
+selected. Mean score fell from 0.111959 for tuned RR to 0.037037 (66.92%);
+the paired difference was -0.074922 with 95% CI [-0.077475, -0.072355]. The
+largest measured P99 was 0.358896 ms, so all three gates pass. However, the
+model selected SRTF for 98.1% of workloads. This proves the observed
+RR-then-SRTF policy beats RR under the synthetic objective, but does not yet
+prove ML is necessary; a fixed switch-at-20 hybrid is the next required
+baseline.
+
+## Static MLFQ Baseline
+
+MLFQ uses three FIFO queues with quanta `(2, 4, 8)`. New and I/O-returning
+processes enter the top queue. Full quantum use moves a process down; waiting
+20 ticks moves it up. Higher queues preempt lower queues while preserving the
+interrupted process's unused quantum.
+
+`mlfq-evaluate` compares MLFQ with tuned RR, direct SRTF, and fixed
+RR-for-20-ticks-then-SRTF. It uses 1,000 seed-6060 synthetic workloads with
+randomized process counts and the original frozen six-policy score bounds.
+These workloads are more varied synthetic tests, not real kernel traces.
+`mlfq-latency` uses seed 6062, 20 samples per profile, five warmups, and
+12/100/1,000-process workloads.
+
+Seed-6060 result: RR-20-SRTF wins with mean score `0.089107`. Tuned RR scores
+`0.124592`, MLFQ scores `0.131408`, and SRTF scores `0.174703`. MLFQ loses all
+five profiles, has pooled P95 wait `448` versus RR's `446`, and therefore fails
+score and fairness gates. All policies pass strict P99 `<10 ms`; MLFQ large
+P99 is about `0.150 ms`. Result: keep RR-20-SRTF recommendation and do not add
+ML for MLFQ queue or quantum prediction from this evidence.
 
 Run tests with:
 

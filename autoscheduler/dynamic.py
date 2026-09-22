@@ -7,7 +7,7 @@ import csv
 import json
 import random
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from statistics import mean, pvariance
 from time import perf_counter_ns
@@ -68,6 +68,10 @@ class _State:
     last_pid: str | None = None
     recent_arrivals: int = 0
     io_returns: int = 0
+    arrivals_seen: int = 0
+    total_io_returns: int = 0
+    completed_burst_durations: list[int] = field(default_factory=list)
+    burst_service: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -128,11 +132,13 @@ def _release(state: _State, until: int) -> None:
         process = state.pending.pop(0)
         events.append((process.arrival_time, process.pid, process, process.priority, False))
         state.recent_arrivals += 1
+        state.arrivals_seen += 1
     blocked = []
     for wake_time, process, priority, from_io in state.blocked:
         if wake_time <= until:
             events.append((wake_time, process.pid, process, priority, from_io))
             state.io_returns += int(from_io)
+            state.total_io_returns += int(from_io)
         else:
             blocked.append((wake_time, process, priority, from_io))
     state.blocked = blocked
@@ -163,7 +169,10 @@ def _policy_config(priority_rr_config: dict | None) -> dict:
     return {**ALGORITHMS["Priority RR"][1], **(priority_rr_config or {})}
 
 
-def _dispatch(state: _State, policy: str, priority_rr_config: dict) -> None:
+def _dispatch(
+    state: _State, policy: str, priority_rr_config: dict,
+    decision_times_ns: list[int] | None = None,
+) -> None:
     _release(state, state.current_time)
     if not state.ready:
         times = [process.arrival_time for process in state.pending]
@@ -172,8 +181,11 @@ def _dispatch(state: _State, policy: str, priority_rr_config: dict) -> None:
             return
         state.current_time = min(times)
         _release(state, state.current_time)
+    started = perf_counter_ns()
     _rebuild_ready(state, policy, priority_rr_config)
     ready = state.ready.pop(0)
+    if decision_times_ns is not None:
+        decision_times_ns.append(perf_counter_ns() - started)
     process = ready.process
     switch_cost = priority_rr_config["context_switch_cost"] if policy == "Priority RR" else 0
     if state.last_pid is not None and state.last_pid != process.pid and switch_cost:
@@ -199,29 +211,39 @@ def _dispatch(state: _State, policy: str, priority_rr_config: dict) -> None:
         else:
             state.timeline.append((process.pid, state.current_time, end_time))
         process.remaining_time -= run_for
+        state.burst_service[process.pid] = state.burst_service.get(process.pid, 0) + run_for
         state.current_time = end_time
         state.last_pid = process.pid
         _release(state, state.current_time)
         if policy != "SRTF" or not process.remaining_time:
             break
-        if any(item.process.remaining_time < process.remaining_time for item in state.ready):
+        started = perf_counter_ns()
+        should_preempt = any(item.process.remaining_time < process.remaining_time for item in state.ready)
+        if decision_times_ns is not None:
+            decision_times_ns.append(perf_counter_ns() - started)
+        if should_preempt:
             break
     if process.remaining_time:
         state.ready.append(_Ready(state.current_time, state.sequence, process, process.priority, False))
         state.sequence += 1
-    elif process.burst_index < len(process.cpu_bursts) - 1:
+    else:
+        state.completed_burst_durations.append(state.burst_service.pop(process.pid))
+    if not process.remaining_time and process.burst_index < len(process.cpu_bursts) - 1:
         wake_time = state.current_time + process.io_bursts[process.burst_index]
         process.burst_index += 1
         process.remaining_time = process.cpu_bursts[process.burst_index]
         state.blocked.append((wake_time, process, max(1, process.priority - 1), True))
-    else:
+    elif not process.remaining_time:
         process.completion_time = state.current_time
         state.completed.append(process)
 
 
-def _run_to_completion(state: _State, policy: str, priority_rr_config: dict) -> None:
+def _run_to_completion(
+    state: _State, policy: str, priority_rr_config: dict,
+    decision_times_ns: list[int] | None = None,
+) -> None:
     while state.pending or state.ready or state.blocked:
-        _dispatch(state, policy, priority_rr_config)
+        _dispatch(state, policy, priority_rr_config, decision_times_ns)
 
 
 def _simulation(state: _State, algorithm: str) -> SimulationResult:
@@ -485,7 +507,7 @@ def tune_dynamic_config(
             config = DynamicRouterConfig(epoch, dwell, confidence)
             rows = build_dynamic_dataset(traces, seed, config, rr_config)
             path = Path(directory) / f"candidate_{index}.joblib"
-            train_model(rows, path, seed, rr_config, DYNAMIC_FEATURE_NAMES, {"dynamic_config": config.__dict__})
+            train_model(rows, path, seed, rr_config, DYNAMIC_FEATURE_NAMES, {"dynamic_config": config.__dict__}, group_key="seed")
             _, summary = evaluate_dynamic(
                 load_model(path, DYNAMIC_FEATURE_NAMES), traces, seed + 1_000_000, config, rr_config
             )

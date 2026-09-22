@@ -1,0 +1,123 @@
+{
+  "samples": 1000,
+  "mean_rr_score": 0.11195948829600713,
+  "mean_direct_srtf_score": 0.16808151501734203,
+  "mean_benefit_score": 0.03703700550912523,
+  "mean_continuation_oracle_score": 0.03586438516957884,
+  "relative_improvement_vs_rr": 0.6691927939934493,
+  "switch_rate": 0.981,
+  "false_switches": 41,
+  "missed_srtf_opportunities": 14,
+  "remaining_oracle_headroom": 0.0011726203395463902,
+  "mean_inference_ms": 0.146429421,
+  "seed": 4040,
+  "config": {
+    "rr_quantum": 1,
+    "observation_ticks": 20,
+    "margin": 0.0025
+  },
+  "paired_difference_vs_rr": {
+    "mean": -0.0749224827868819,
+    "ci_low": -0.07747465884011857,
+    "ci_high": -0.07235529605724207
+  },
+  "score_improvement_gate": true,
+  "confidence_gate": true,
+  "decision_p99_ms": 0.30323523999999996,
+  "latency_gate": true,
+  "eligible": true,
+  "recommended_policy": "Benefit selector",
+  "per_profile": {
+    "interactive": {
+      "samples": 200,
+      "mean_rr_score": 0.08868318141566257,
+      "mean_direct_srtf_score": 0.1426128528577905,
+      "mean_benefit_score": 0.057266950079471406,
+      "mean_continuation_oracle_score": 0.054255738046860014,
+      "relative_improvement_vs_rr": 0.3542524166892671,
+      "switch_rate": 0.95,
+      "false_switches": 22,
+      "missed_srtf_opportunities": 6,
+      "remaining_oracle_headroom": 0.003011212032611392,
+      "mean_inference_ms": 0.17305811499999998,
+      "paired_difference_vs_rr": {
+        "mean": -0.03141623133619116,
+        "ci_low": -0.03500258234076584,
+        "ci_high": -0.027812697099630437
+      }
+    },
+    "batch": {
+      "samples": 200,
+      "mean_rr_score": 0.12936069425111343,
+      "mean_direct_srtf_score": 0.21124869704001947,
+      "mean_benefit_score": 0.028522890734526712,
+      "mean_continuation_oracle_score": 0.028522890734526712,
+      "relative_improvement_vs_rr": 0.7795088307182518,
+      "switch_rate": 1,
+      "false_switches": 0,
+      "missed_srtf_opportunities": 0,
+      "remaining_oracle_headroom": 0.0,
+      "mean_inference_ms": 0.130741275,
+      "paired_difference_vs_rr": {
+        "mean": -0.10083780351658672,
+        "ci_low": -0.1022621558077304,
+        "ci_high": -0.09940335389651081
+      }
+    },
+    "cpu_intensive": {
+      "samples": 200,
+      "mean_rr_score": 0.13305395540284665,
+      "mean_direct_srtf_score": 0.19982244619150372,
+      "mean_benefit_score": 0.02447100065918113,
+      "mean_continuation_oracle_score": 0.02447100065918113,
+      "relative_improvement_vs_rr": 0.8160821255926557,
+      "switch_rate": 1,
+      "false_switches": 0,
+      "missed_srtf_opportunities": 0,
+      "remaining_oracle_headroom": 0.0,
+      "mean_inference_ms": 0.12773708,
+      "paired_difference_vs_rr": {
+        "mean": -0.10858295474366551,
+        "ci_low": -0.11025058224472178,
+        "ci_high": -0.10698192773527408
+      }
+    },
+    "io_intensive": {
+      "samples": 200,
+      "mean_rr_score": 0.08801543476009037,
+      "mean_direct_srtf_score": 0.13798676567369914,
+      "mean_benefit_score": 0.060566971353687736,
+      "mean_continuation_oracle_score": 0.0578891157043066,
+      "relative_improvement_vs_rr": 0.3118596582658572,
+      "switch_rate": 0.96,
+      "false_switches": 19,
+      "missed_srtf_opportunities": 7,
+      "remaining_oracle_headroom": 0.002677855649381139,
+      "mean_inference_ms": 0.15804976,
+      "paired_difference_vs_rr": {
+        "mean": -0.02744846340640263,
+        "ci_low": -0.03088822122747402,
+        "ci_high": -0.02408261319513879
+      }
+    },
+    "mixed": {
+      "samples": 200,
+      "mean_rr_score": 0.12068417565032266,
+      "mean_direct_srtf_score": 0.14873681332369734,
+      "mean_benefit_score": 0.014357214718759191,
+      "mean_continuation_oracle_score": 0.014183180703019752,
+      "relative_improvement_vs_rr": 0.8810348196738019,
+      "switch_rate": 0.995,
+      "false_switches": 0,
+      "missed_srtf_opportunities": 1,
+      "remaining_oracle_headroom": 0.00017403401573943926,
+      "mean_inference_ms": 0.142560875,
+      "paired_difference_vs_rr": {
+        "mean": -0.10632696093156348,
+        "ci_low": -0.10906746829927894,
+        "ci_high": -0.10343976558484234
+      }
+    }
+  },
+  "full_latency_gate": true
+}

@@ -1,0 +1,36 @@
+{
+  "seed": 5050,
+  "samples_per_profile": 20,
+  "warmups": 5,
+  "sizes": {
+    "small": 12,
+    "medium": 100,
+    "large": 1000
+  },
+  "latency": {
+    "small": {
+      "samples": 100,
+      "p50_ms": 0.11135400000000001,
+      "p95_ms": 0.12591249999999998,
+      "p99_ms": 0.17507676000000005
+    },
+    "medium": {
+      "samples": 100,
+      "p50_ms": 0.1183545,
+      "p95_ms": 0.17230415,
+      "p99_ms": 0.23535858000000026
+    },
+    "large": {
+      "samples": 100,
+      "p50_ms": 0.237854,
+      "p95_ms": 0.33573365,
+      "p99_ms": 0.3583535100000003
+    }
+  },
+  "gate_p99_ms": 10.0,
+  "passes_latency_gate": true,
+  "score_improvement_gate": true,
+  "confidence_gate": true,
+  "eligible": true,
+  "recommended_policy": "Benefit selector"
+}
