@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AutoScheduler Foreground Probe</title>
+<style>
+  :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+  body { margin: 0; background: #0b1020; color: #e7eefc; }
+  main { max-width: 900px; margin: 48px auto; padding: 0 24px; }
+  h1 { color: #67e8f9; }
+  #pulse { height: 12px; border-radius: 8px; background: #22d3ee; transform-origin: left; }
+  #grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 24px; }
+  .card { padding: 18px; border: 1px solid #334155; border-radius: 12px; background: #111827; }
+  canvas { width: 100%; height: 240px; margin-top: 24px; border-radius: 12px; background: #111827; }
+</style>
+<main>
+  <h1>AutoScheduler Foreground Probe</h1>
+  <p>Deterministic local rendering and wake-up workload. No network requests.</p>
+  <div id="pulse"></div>
+  <section id="grid"></section>
+  <canvas id="chart" width="900" height="240"></canvas>
+</main>
+<script>
+  let state = 0x5eed1234;
+  const random = () => {
+    state ^= state << 13; state ^= state >>> 17; state ^= state << 5;
+    return (state >>> 0) / 4294967296;
+  };
+  const grid = document.querySelector('#grid');
+  for (let index = 0; index < 12; index++) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.textContent = `Task ${index + 1}: ready`;
+    grid.append(card);
+  }
+  const context = document.querySelector('#chart').getContext('2d');
+  let frame = 0;
+  function render() {
+    frame++;
+    document.querySelector('#pulse').style.transform = `scaleX(${0.2 + random() * 0.8})`;
+    const cards = document.querySelectorAll('.card');
+    cards[frame % cards.length].textContent = `Task ${(frame % cards.length) + 1}: tick ${frame}`;
+    context.fillStyle = '#111827'; context.fillRect(0, 0, 900, 240);
+    context.strokeStyle = '#22d3ee'; context.beginPath();
+    for (let x = 0; x < 900; x += 6) {
+      const y = 120 + Math.sin((x + frame * 2) / 35) * 60 + (random() - 0.5) * 12;
+      x ? context.lineTo(x, y) : context.moveTo(x, y);
+    }
+    context.stroke();
+    requestAnimationFrame(render);
+  }
+  requestAnimationFrame(render);
+</script>
+</html>

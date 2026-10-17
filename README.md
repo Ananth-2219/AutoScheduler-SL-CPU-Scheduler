@@ -6,6 +6,221 @@ to select one algorithm for a new workload.
 
 The project is a simulator, not an operating-system kernel scheduler.
 
+The next research phase validates ML on observed Linux desktop traces. Its
+machine-readable contract is `configs/real_desktop_ml.json`; synthetic data is
+limited to tests, stress cases, and optional pretraining. Validate the frozen
+contract with:
+
+```bash
+python main.py real-config
+```
+
+See `docs/REAL_DATA_POLICY.md` for source, privacy, and licensing boundaries.
+See `docs/OFFLINE_REPLAY_CONTRACT.md` for the trace eligibility and
+reconstruction rules used to create offline candidate-screening labels.
+
+### Real Linux trace smoke flow
+
+The collector must run inside the Linux VM because macOS does not expose Linux
+scheduler tracepoints. It traces one pinned CPU while running the workload as
+the original non-root user:
+
+```bash
+sudo /home/knightnm/autoscheduler-tools/capture_linux_trace.sh \
+  /home/knightnm/autoscheduler-captures/smoke-cpu-002 0 -- \
+  stress-ng --cpu 1 --timeout 5s --metrics-brief
+```
+
+For a controlled desktop workload, deploy `tools/run_firefox_probe.sh` and
+`workloads/real/firefox_probe/index.html` with the same repository layout in
+the VM. Test the visible workload without tracing first:
+
+```bash
+/home/knightnm/autoscheduler/tools/run_firefox_probe.sh 8
+```
+
+The probe uses an isolated temporary Firefox profile, loads only the local
+page, performs deterministic DOM and canvas work, and exits after the requested
+duration.
+
+Multiprocess desktop applications may create helpers outside their requested
+CPU affinity. Capture all CPUs while retaining CPU 0 as the workload affinity,
+then detect migrations during validation:
+
+```bash
+sudo /home/knightnm/autoscheduler-tools/capture_linux_trace.sh \
+  --all-cpus /home/knightnm/autoscheduler-captures/smoke-firefox-allcpu-001 \
+  0 -- /home/knightnm/autoscheduler/tools/run_firefox_probe.sh 10
+```
+
+After the all-CPU smoke capture passes, collect one short trace for every real
+workload family:
+
+```bash
+sudo /home/knightnm/autoscheduler/tools/capture_linux_pilot.sh \
+  /home/knightnm/autoscheduler-captures/pilot-001 10
+```
+
+The pilot runs wakeup, CPU, I/O, Firefox, compression, and mixed workloads
+sequentially. It is pipeline validation only, not the final training dataset.
+
+For the full raw-trace collection, the runner records all CPUs for 30 named
+configurations, repeats each configuration ten times, and retains only raw
+trace data, metadata, and logs on the VM. It takes about five hours:
+
+```bash
+sudo /home/knightnm/autoscheduler/tools/capture_linux_full.sh \
+  /home/knightnm/autoscheduler-captures/full-001 60 10
+```
+
+Validate the complete 30-configuration matrix without recording data first:
+
+```bash
+bash /home/knightnm/autoscheduler/tools/capture_linux_full.sh \
+  --dry-run /home/knightnm/autoscheduler-captures/full-001 60 1
+```
+
+Do not export uncompressed reports on the VM during collection; its available
+storage is reserved for the raw capture set.
+
+After exporting `trace.dat` with `trace-cmd report`, import and validate it:
+
+```bash
+python main.py real-trace-import \
+  --report data/raw/linux/smoke-cpu-002/trace.txt \
+  --metadata data/raw/linux/smoke-cpu-002/metadata.json \
+  --output data/processed/linux/smoke-cpu-002.jsonl \
+  --trace-id smoke-cpu-002
+python main.py real-trace-validate data/processed/linux/smoke-cpu-002.jsonl
+```
+
+Raw and processed traces are ignored by Git. Commit only anonymized fixtures,
+manifests, checksums, and aggregate results.
+
+### Cleaning and anonymization
+
+Before sharing or modeling canonical traces, create a separate sanitized copy.
+The cleaner never changes its inputs. It rejects incomplete traces, replaces
+trace and process identifiers, removes machine/user/path/command metadata, and
+keeps only scheduling-relevant fields:
+
+```bash
+python main.py real-trace-clean \
+  data/processed/linux/pilot-001/wakeup-001.jsonl \
+  data/processed/linux/pilot-001/cpu-001.jsonl \
+  data/processed/linux/pilot-001/io-001.jsonl \
+  data/processed/linux/pilot-001/firefox-001.jsonl \
+  data/processed/linux/pilot-001/compression-001.jsonl \
+  data/processed/linux/pilot-001/mixed-001.jsonl \
+  --capture-session pilot-clean \
+  --output data/processed/linux/pilot-001/cleaned.jsonl
+python main.py real-trace-validate data/processed/linux/pilot-001/cleaned.jsonl
+```
+
+Use the cleaned JSONL for feature extraction and offline replay outside the
+private capture workspace. Cleaning makes traces shareable for this research
+workflow; it does not make a trace safe to publish if its timings themselves
+are sensitive.
+
+### Observed-only feature rows
+
+After importing traces, extract decision rows using only events that occurred
+before each decision time. This creates inputs, not model labels or performance
+claims:
+
+```bash
+python main.py real-features \
+  data/processed/linux/pilot-001/cleaned.jsonl \
+  --output data/processed/linux/pilot-001/observed_features.csv
+```
+
+The CSV includes only the feature contract in `configs/real_desktop_ml.json`.
+It cannot train a policy model until a separate, valid policy-cost labeling
+method exists.
+
+### Leakage-safe trace split
+
+Split feature rows before any model fitting. Rows from the same application,
+scenario, and capture session always remain together; this prevents a model
+from training on one moment of a trace and being tested on another:
+
+```bash
+python main.py real-split \
+  data/processed/linux/pilot-001/cleaned_observed_features.csv \
+  --output data/processed/linux/pilot-001/split_manifest.json
+```
+
+The pilot creates a valid 4/1/1 trace-group smoke split, but it is too small
+for model selection or performance claims. Older imported traces without
+scenario metadata are isolated by their anonymized trace ID.
+
+### Prototype-only replay labels
+
+The pilot can create offline-replay action-cost rows to exercise the model
+pipeline. These rows are explicitly development-only and cannot support a
+claim about real Linux scheduler performance:
+
+```bash
+python main.py real-dataset \
+  data/processed/linux/pilot-001/cleaned.jsonl \
+  --output data/processed/linux/pilot-001/pilot_action_costs.csv
+```
+
+Run the prototype model bake-off with observed state features plus a proposed
+action. Each model predicts the replay cost of that action, then picks the
+lowest predicted-cost action for each observed state. The report is development
+only: its labels are offline replay estimates, not Linux kernel measurements.
+
+```bash
+.venv/bin/python main.py model-bakeoff \
+  data/processed/linux/pilot-001/pilot_action_costs.csv \
+  --output results/real_desktop_ml/prototype_bakeoff
+```
+
+It writes `summary.json`, `candidates.csv`, `prototype_comparison_report.md`,
+and `locked_evaluation_report.md` under the output directory. The locked report
+returns `INSUFFICIENT_DATA` until it has all 60 grouped locked-test traces
+required by the frozen collection contract; it never turns a small pilot into a
+passing ML result.
+
+### Synthetic development pipeline
+
+When a real Linux collection is unavailable, exercise the full pipeline with
+deterministic trace-shaped development data. It is intentionally marked
+`SYNTHETIC_DEVELOPMENT_ONLY`; it can test plumbing, not select a final model.
+
+```bash
+.venv/bin/python main.py real-synthetic-capture --repetitions 60 --seed 9001 \
+  --output data/processed/synthetic/prototype/raw.jsonl
+.venv/bin/python main.py real-trace-clean data/processed/synthetic/prototype/raw.jsonl \
+  --capture-session synthetic-prototype --output data/processed/synthetic/prototype/cleaned.jsonl
+.venv/bin/python main.py real-features data/processed/synthetic/prototype/cleaned.jsonl \
+  --output data/processed/synthetic/prototype/observed_features.csv
+.venv/bin/python main.py real-dataset data/processed/synthetic/prototype/cleaned.jsonl \
+  --output data/processed/synthetic/prototype/action_costs.csv
+.venv/bin/python main.py model-bakeoff data/processed/synthetic/prototype/action_costs.csv \
+  --output results/real_desktop_ml/synthetic_prototype
+```
+
+### Offline replay workloads
+
+Create deterministic simulator inputs from completed canonical traces. The
+output records every rejected trace or process, so exclusions stay auditable:
+
+```bash
+python main.py real-replay-build \
+  data/processed/linux/pilot-001/wakeup-001.jsonl \
+  data/processed/linux/pilot-001/cpu-001.jsonl \
+  data/processed/linux/pilot-001/io-001.jsonl \
+  data/processed/linux/pilot-001/firefox-001.jsonl \
+  data/processed/linux/pilot-001/compression-001.jsonl \
+  data/processed/linux/pilot-001/mixed-001.jsonl \
+  --output data/processed/linux/pilot-001/offline_replay_manifest.json
+```
+
+This is offline candidate screening, not evidence that a policy improves the
+real Linux kernel scheduler.
+
 ## Features
 
 - Backward-compatible single CPU-burst processes

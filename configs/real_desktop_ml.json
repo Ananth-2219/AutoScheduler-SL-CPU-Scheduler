@@ -1,0 +1,137 @@
+{
+  "schema_version": 1,
+  "experiment_id": "real_desktop_ml_v1",
+  "status": "frozen_before_data_collection",
+  "target": {
+    "domain": "single_cpu_desktop_interactive_linux",
+    "host": "vmware_fusion_debian_or_kali",
+    "timestamp_unit": "nanoseconds"
+  },
+  "data": {
+    "primary_source": "controlled_linux_scheduler_traces",
+    "secondary_sources": ["azure", "alibaba"],
+    "secondary_use": "distribution_shift_and_robustness_only",
+    "synthetic_role": "tests_stress_and_optional_pretraining_only",
+    "linux_events": [
+      "sched_wakeup",
+      "sched_waking",
+      "sched_switch",
+      "sched_process_fork",
+      "sched_process_exec",
+      "sched_process_exit",
+      "block_io_when_available"
+    ],
+    "workloads": [
+      "foreground_wakeup_probe",
+      "stress_ng",
+      "fio",
+      "firefox_esr_local_page",
+      "compile_or_compression",
+      "mixed"
+    ],
+    "configurations": 30,
+    "repetitions_per_configuration": 10,
+    "trace_duration_seconds": 60
+  },
+  "policies": {
+    "deployable": [
+      {"name": "FCFS", "parameters": {}},
+      {"name": "Round Robin", "parameters": {"quantum": 2}},
+      {"name": "Priority", "parameters": {}},
+      {
+        "name": "Priority RR",
+        "parameters": {"quantum": 2, "aging_interval": 8, "context_switch_cost": 1}
+      },
+      {"name": "MLFQ", "parameters": {"quanta": [2, 4, 8], "aging_threshold": 20}}
+    ],
+    "oracle_only": [
+      {"name": "SJF", "reason": "requires true burst information"},
+      {"name": "SRTF", "reason": "requires true remaining burst information"},
+      {"name": "RR20-SRTF", "reason": "SRTF continuation requires hidden remaining work"}
+    ],
+    "fixed_comparator_selection": "lowest development score among deployable policies"
+  },
+  "control": {
+    "initial_observation_ms": 2000,
+    "feature_window_ms": 2000,
+    "decision_interval_ms": 500,
+    "minimum_dwell_ms": 2000,
+    "decision_boundary": "safe_dispatch_boundary",
+    "fallback": "fixed_comparator"
+  },
+  "features": {
+    "availability": "previous_feature_window_only",
+    "allowed": [
+      "arrivals_seen",
+      "ready_count",
+      "blocked_count",
+      "running_count",
+      "wait_mean_ms",
+      "wait_p95_ms",
+      "observed_service_mean_ms",
+      "observed_service_variance_ms2",
+      "completed_burst_mean_ms",
+      "completed_burst_variance_ms2",
+      "io_returns",
+      "priority_mean",
+      "priority_variance",
+      "context_switches",
+      "wakeups",
+      "cpu_busy_fraction"
+    ],
+    "forbidden": [
+      "future_arrivals",
+      "declared_total_cpu_time",
+      "declared_total_io_time",
+      "true_remaining_burst",
+      "post_decision_outcomes",
+      "oracle_policy_identity"
+    ]
+  },
+  "score_weights": {
+    "p95_foreground_wakeup": 0.25,
+    "mean_foreground_response": 0.20,
+    "p95_wait": 0.15,
+    "mean_turnaround": 0.15,
+    "throughput_penalty": 0.10,
+    "cpu_utilization_penalty": 0.10,
+    "context_switches": 0.05
+  },
+  "dataset": {
+    "split": {"train": 0.60, "validation": 0.20, "test": 0.20},
+    "group_by": ["application", "scenario", "capture_session"],
+    "locked_test": "unseen_application_configurations",
+    "label_horizon_ms": 2000,
+    "after_horizon": "fixed_comparator"
+  },
+  "models": {
+    "objective": "predict_policy_cost",
+    "selection_metric": "realized_validation_desktop_score",
+    "tie_rule": "within_0.5_percent_and_ci_crosses_zero_choose_simpler",
+    "simplicity_order": ["Dummy", "Ridge", "Decision Tree", "Random Forest", "Histogram Gradient Boosting"],
+    "families": {
+      "Dummy": {"strategy": ["mean"]},
+      "Ridge": {"alpha": [0.01, 0.1, 1, 10, 100]},
+      "Decision Tree": {"max_depth": [3, 5, 8, null], "min_samples_leaf": [5, 10, 25]},
+      "Random Forest": {"n_estimators": [100], "max_depth": [5, 10, null], "min_samples_leaf": [1, 5]},
+      "Histogram Gradient Boosting": {"max_iter": [100], "learning_rate": [0.05, 0.1], "max_leaf_nodes": [7, 15, 31]}
+    },
+    "switch_margin": [0, 0.0025, 0.005, 0.01, 0.02],
+    "maximum_configurations_per_family": 12
+  },
+  "acceptance_gates": {
+    "minimum_mean_score_improvement_fraction": 0.01,
+    "paired_95_ci_upper_below_zero": true,
+    "decision_p99_ms_strictly_below": 10,
+    "maximum_p99_foreground_response_regression_fraction": 0.02,
+    "allow_starvation_increase": false,
+    "require_unseen_application_improvement": true,
+    "constant_policy_dominance_threshold": 0.95
+  },
+  "seeds": {
+    "split": 7001,
+    "model_tuning": 7002,
+    "bootstrap": 7003
+  },
+  "output_root": "results/real_desktop_ml"
+}

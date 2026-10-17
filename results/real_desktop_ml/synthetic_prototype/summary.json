@@ -1,0 +1,420 @@
+{
+  "actions": [
+    "FCFS",
+    "Round Robin",
+    "Priority",
+    "Priority RR",
+    "MLFQ"
+  ],
+  "bakeoff": {
+    "families": {
+      "Decision Tree": [
+        {
+          "family": "Decision Tree",
+          "settings": {
+            "max_depth": 3,
+            "min_samples_leaf": 5
+          },
+          "validation_score": 0.16215767761809669
+        },
+        {
+          "family": "Decision Tree",
+          "settings": {
+            "max_depth": 3,
+            "min_samples_leaf": 10
+          },
+          "validation_score": 0.16215767761809669
+        },
+        {
+          "family": "Decision Tree",
+          "settings": {
+            "max_depth": 3,
+            "min_samples_leaf": 25
+          },
+          "validation_score": 0.16215767761809669
+        },
+        {
+          "family": "Decision Tree",
+          "settings": {
+            "max_depth": 5,
+            "min_samples_leaf": 5
+          },
+          "validation_score": 0.16215767761809669
+        },
+        {
+          "family": "Decision Tree",
+          "settings": {
+            "max_depth": 5,
+            "min_samples_leaf": 10
+          },
+          "validation_score": 0.16215767761809669
+        },
+        {
+          "family": "Decision Tree",
+          "settings": {
+            "max_depth": 5,
+            "min_samples_leaf": 25
+          },
+          "validation_score": 0.16215767761809669
+        },
+        {
+          "family": "Decision Tree",
+          "settings": {
+            "max_depth": 8,
+            "min_samples_leaf": 5
+          },
+          "validation_score": 0.16215767761809669
+        },
+        {
+          "family": "Decision Tree",
+          "settings": {
+            "max_depth": 8,
+            "min_samples_leaf": 10
+          },
+          "validation_score": 0.16215767761809669
+        },
+        {
+          "family": "Decision Tree",
+          "settings": {
+            "max_depth": 8,
+            "min_samples_leaf": 25
+          },
+          "validation_score": 0.16215767761809669
+        },
+        {
+          "family": "Decision Tree",
+          "settings": {
+            "max_depth": null,
+            "min_samples_leaf": 5
+          },
+          "validation_score": 0.16674108379070127
+        },
+        {
+          "family": "Decision Tree",
+          "settings": {
+            "max_depth": null,
+            "min_samples_leaf": 10
+          },
+          "validation_score": 0.17017819502044082
+        },
+        {
+          "family": "Decision Tree",
+          "settings": {
+            "max_depth": null,
+            "min_samples_leaf": 25
+          },
+          "validation_score": 0.16346519695694506
+        }
+      ],
+      "Dummy": [
+        {
+          "family": "Dummy",
+          "settings": {
+            "strategy": "mean"
+          },
+          "validation_score": 0.20561342283341813
+        }
+      ],
+      "Histogram Gradient Boosting": [
+        {
+          "family": "Histogram Gradient Boosting",
+          "settings": {
+            "learning_rate": 0.05,
+            "max_iter": 100,
+            "max_leaf_nodes": 7
+          },
+          "validation_score": 0.16141978968690673
+        },
+        {
+          "family": "Histogram Gradient Boosting",
+          "settings": {
+            "learning_rate": 0.05,
+            "max_iter": 100,
+            "max_leaf_nodes": 15
+          },
+          "validation_score": 0.16214199652604622
+        },
+        {
+          "family": "Histogram Gradient Boosting",
+          "settings": {
+            "learning_rate": 0.05,
+            "max_iter": 100,
+            "max_leaf_nodes": 31
+          },
+          "validation_score": 0.16170172233720717
+        },
+        {
+          "family": "Histogram Gradient Boosting",
+          "settings": {
+            "learning_rate": 0.1,
+            "max_iter": 100,
+            "max_leaf_nodes": 7
+          },
+          "validation_score": 0.16117611269736762
+        },
+        {
+          "family": "Histogram Gradient Boosting",
+          "settings": {
+            "learning_rate": 0.1,
+            "max_iter": 100,
+            "max_leaf_nodes": 15
+          },
+          "validation_score": 0.1614303019513737
+        },
+        {
+          "family": "Histogram Gradient Boosting",
+          "settings": {
+            "learning_rate": 0.1,
+            "max_iter": 100,
+            "max_leaf_nodes": 31
+          },
+          "validation_score": 0.16149548854303636
+        }
+      ],
+      "Random Forest": [
+        {
+          "family": "Random Forest",
+          "settings": {
+            "max_depth": 5,
+            "min_samples_leaf": 1,
+            "n_estimators": 100
+          },
+          "validation_score": 0.16215767761809669
+        },
+        {
+          "family": "Random Forest",
+          "settings": {
+            "max_depth": 5,
+            "min_samples_leaf": 5,
+            "n_estimators": 100
+          },
+          "validation_score": 0.16215767761809669
+        },
+        {
+          "family": "Random Forest",
+          "settings": {
+            "max_depth": 10,
+            "min_samples_leaf": 1,
+            "n_estimators": 100
+          },
+          "validation_score": 0.1620861168748405
+        },
+        {
+          "family": "Random Forest",
+          "settings": {
+            "max_depth": 10,
+            "min_samples_leaf": 5,
+            "n_estimators": 100
+          },
+          "validation_score": 0.16194975989171542
+        },
+        {
+          "family": "Random Forest",
+          "settings": {
+            "max_depth": null,
+            "min_samples_leaf": 1,
+            "n_estimators": 100
+          },
+          "validation_score": 0.16262635341322546
+        },
+        {
+          "family": "Random Forest",
+          "settings": {
+            "max_depth": null,
+            "min_samples_leaf": 5,
+            "n_estimators": 100
+          },
+          "validation_score": 0.16184792369178289
+        }
+      ],
+      "Ridge": [
+        {
+          "family": "Ridge",
+          "settings": {
+            "alpha": 0.01
+          },
+          "validation_score": 0.16215767761809669
+        },
+        {
+          "family": "Ridge",
+          "settings": {
+            "alpha": 0.1
+          },
+          "validation_score": 0.16215767761809669
+        },
+        {
+          "family": "Ridge",
+          "settings": {
+            "alpha": 1
+          },
+          "validation_score": 0.16215767761809669
+        },
+        {
+          "family": "Ridge",
+          "settings": {
+            "alpha": 10
+          },
+          "validation_score": 0.16215767761809669
+        },
+        {
+          "family": "Ridge",
+          "settings": {
+            "alpha": 100
+          },
+          "validation_score": 0.16215767761809669
+        }
+      ]
+    },
+    "maximum_configurations_per_family": 12,
+    "selected": {
+      "family": "Histogram Gradient Boosting",
+      "settings": {
+        "learning_rate": 0.1,
+        "max_iter": 100,
+        "max_leaf_nodes": 7
+      },
+      "test_score": 0.18554059480785678,
+      "validation_score": 0.16117611269736762
+    },
+    "selection_basis": "caller_supplied_validation_scheduler_score",
+    "tie_margin_fraction": 0.005
+  },
+  "comparison": {
+    "locked_test_fixed_action_cost": {
+      "FCFS": 0.23054447019091004,
+      "MLFQ": 0.18555629563907633,
+      "Priority": 0.2574004918702209,
+      "Priority RR": 0.7504521943756655,
+      "Round Robin": 0.18599115159701113
+    },
+    "locked_test_oracle_cost": 0.18359998905468122
+  },
+  "dataset": {
+    "event_count": 31335,
+    "process_count": 3240,
+    "profiles": [
+      "batch",
+      "cpu_intensive",
+      "interactive",
+      "io_intensive",
+      "mixed"
+    ],
+    "seeds": {
+      "bootstrap": 7003,
+      "generation": [
+        9001
+      ],
+      "model_tuning": 7002,
+      "split": 7001
+    }
+  },
+  "gates": {
+    "confidence_gate": true,
+    "data_sufficient": true,
+    "decision_p99_ms": 23.40825,
+    "fairness": {
+      "comparator_mean_post_io_max_response_time": 13.532846715328468,
+      "comparator_mean_starvation_count": 10.0,
+      "passes": true,
+      "selected_mean_post_io_max_response_time": 0.44525547445255476,
+      "selected_mean_starvation_count": 10.0
+    },
+    "fairness_gate": true,
+    "fixed_comparator": "Round Robin",
+    "improvement_gate": false,
+    "latency_gate": false,
+    "locked_test_comparator_cost": 0.18599115159701113,
+    "locked_test_model_cost": 0.18554059480785678,
+    "locked_test_trace_count": 60,
+    "mean_improvement_fraction": 0.002422463570366883,
+    "minimum_locked_test_trace_count": 60,
+    "paired_difference_model_minus_comparator": {
+      "bootstrap_samples": 10000,
+      "ci_high": -7.619417463153027e-06,
+      "ci_low": -0.0009003758766846411,
+      "mean": -0.0004505567891543444
+    },
+    "status": "SYNTHETIC_DEVELOPMENT_ONLY"
+  },
+  "label_provenance": "synthetic_development_only",
+  "limitation": "Offline replay labels from pilot traces are not real kernel measurements and cannot select a final deployable model.",
+  "model_comparison": {
+    "Decision Tree": {
+      "action_selection_accuracy": 0.48905109489051096,
+      "decision_p99_ms": 0.124459,
+      "locked_test_realized_cost": 0.18555629563907633,
+      "selected": false,
+      "settings": {
+        "max_depth": 3,
+        "min_samples_leaf": 5
+      },
+      "test_cost_mae": 0.02768823157815382,
+      "test_cost_r2": 0.9681267777212215,
+      "validation_realized_cost": 0.16215767761809669
+    },
+    "Dummy": {
+      "action_selection_accuracy": 0.058394160583941604,
+      "decision_p99_ms": 0.053334,
+      "locked_test_realized_cost": 0.23054447019091004,
+      "selected": false,
+      "settings": {
+        "strategy": "mean"
+      },
+      "test_cost_mae": 0.17003109850103618,
+      "test_cost_r2": -0.00023467949643030117,
+      "validation_realized_cost": 0.20561342283341813
+    },
+    "Histogram Gradient Boosting": {
+      "action_selection_accuracy": 0.49635036496350365,
+      "decision_p99_ms": 21.594625,
+      "locked_test_realized_cost": 0.18554059480785678,
+      "selected": true,
+      "settings": {
+        "learning_rate": 0.1,
+        "max_iter": 100,
+        "max_leaf_nodes": 7
+      },
+      "test_cost_mae": 0.021889690404916697,
+      "test_cost_r2": 0.9796401439685292,
+      "validation_realized_cost": 0.16117611269736762
+    },
+    "Random Forest": {
+      "action_selection_accuracy": 0.43795620437956206,
+      "decision_p99_ms": 7.075917,
+      "locked_test_realized_cost": 0.1858805403516417,
+      "selected": false,
+      "settings": {
+        "max_depth": null,
+        "min_samples_leaf": 5,
+        "n_estimators": 100
+      },
+      "test_cost_mae": 0.019507710745046786,
+      "test_cost_r2": 0.9816968996018335,
+      "validation_realized_cost": 0.16184792369178289
+    },
+    "Ridge": {
+      "action_selection_accuracy": 0.48905109489051096,
+      "decision_p99_ms": 0.27025,
+      "locked_test_realized_cost": 0.18555629563907633,
+      "selected": false,
+      "settings": {
+        "alpha": 0.01
+      },
+      "test_cost_mae": 0.03225222609330869,
+      "test_cost_r2": 0.9654775582856391,
+      "validation_realized_cost": 0.16215767761809669
+    }
+  },
+  "row_counts": {
+    "test": 1370,
+    "train": 7900,
+    "validation": 1565
+  },
+  "selection_metric": "realized_cost_of_lowest_predicted_action_per_observed_state",
+  "status": "prototype_development_only",
+  "trace_counts": {
+    "test": 60,
+    "train": 180,
+    "validation": 60
+  }
+}
