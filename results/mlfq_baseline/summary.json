@@ -1,0 +1,417 @@
+{
+  "samples": 1000,
+  "seed": 6060,
+  "bootstrap_seed": 6061,
+  "rr_quantum": 1,
+  "rr_quantum_candidates": [
+    {
+      "quantum": 1,
+      "mean_score": 0.11161052199976053
+    },
+    {
+      "quantum": 2,
+      "mean_score": 0.13199903609929212
+    },
+    {
+      "quantum": 4,
+      "mean_score": 0.15690453717131772
+    },
+    {
+      "quantum": 8,
+      "mean_score": 0.18723289533019097
+    }
+  ],
+  "mlfq_config": {
+    "quanta": [
+      2,
+      4,
+      8
+    ],
+    "aging_threshold": 20,
+    "context_switch_cost": 0
+  },
+  "policies": {
+    "Tuned RR": {
+      "mean_score": 0.12459234731791759,
+      "mean_response_time": 7.877754677230578,
+      "mean_context_switches": 326.785,
+      "max_waiting_time": 683,
+      "p95_waiting_time": 446.0,
+      "starvation_count": 19889,
+      "priority_mean_waiting_time": 214.1764853977845,
+      "priority_max_waiting_time": 683,
+      "post_io_mean_response_time": 15.367995883714947,
+      "post_io_max_response_time": 30
+    },
+    "SRTF": {
+      "mean_score": 0.1747027201037089,
+      "mean_response_time": 82.28321680856968,
+      "mean_context_switches": 62.731,
+      "max_waiting_time": 676,
+      "p95_waiting_time": 363.0,
+      "starvation_count": 16512,
+      "priority_mean_waiting_time": 139.85297079556898,
+      "priority_max_waiting_time": 617,
+      "post_io_mean_response_time": 28.484615384615385,
+      "post_io_max_response_time": 613
+    },
+    "RR20-SRTF": {
+      "mean_score": 0.08910692322534448,
+      "mean_response_time": 35.955157816140265,
+      "mean_context_switches": 78.097,
+      "max_waiting_time": 676,
+      "p95_waiting_time": 365.0,
+      "starvation_count": 18076,
+      "priority_mean_waiting_time": 145.39400805639477,
+      "priority_max_waiting_time": 649,
+      "post_io_mean_response_time": 30.764497041420118,
+      "post_io_max_response_time": 627
+    },
+    "MLFQ": {
+      "mean_score": 0.13140772876688156,
+      "mean_response_time": 10.542871857867,
+      "mean_context_switches": 164.966,
+      "max_waiting_time": 684,
+      "p95_waiting_time": 448.0,
+      "starvation_count": 19877,
+      "priority_mean_waiting_time": 213.17484894259817,
+      "priority_max_waiting_time": 684,
+      "post_io_mean_response_time": 18.857885258554155,
+      "post_io_max_response_time": 49
+    }
+  },
+  "best_comparator": "RR20-SRTF",
+  "paired_mlfq_differences": {
+    "Tuned RR": {
+      "mean": 0.006815381448963973,
+      "ci_low": 0.00611728714347616,
+      "ci_high": 0.007502822968660922
+    },
+    "SRTF": {
+      "mean": -0.04329499133682734,
+      "ci_low": -0.045517292670511945,
+      "ci_high": -0.041077852777958467
+    },
+    "RR20-SRTF": {
+      "mean": 0.042300805541537076,
+      "ci_low": 0.03943118862880394,
+      "ci_high": 0.045181478929737784
+    }
+  },
+  "score_gate": false,
+  "fairness_gate": false,
+  "profile_wins": 0,
+  "profile_losses": 5,
+  "per_profile": {
+    "interactive": {
+      "policies": {
+        "Tuned RR": {
+          "mean_score": 0.10438454159895634,
+          "mean_response_time": 9.370778564708985,
+          "mean_context_switches": 205.745,
+          "max_waiting_time": 275,
+          "p95_waiting_time": 217.0,
+          "starvation_count": 4759,
+          "priority_mean_waiting_time": 131.53147953830012,
+          "priority_max_waiting_time": 275,
+          "post_io_mean_response_time": 15.609321395699105,
+          "post_io_max_response_time": 30
+        },
+        "SRTF": {
+          "mean_score": 0.1401062263680524,
+          "mean_response_time": 30.750891713199902,
+          "mean_context_switches": 87.595,
+          "max_waiting_time": 288,
+          "p95_waiting_time": 208.0,
+          "starvation_count": 4197,
+          "priority_mean_waiting_time": 100.82004197271773,
+          "priority_max_waiting_time": 278,
+          "post_io_mean_response_time": 26.34373692578027,
+          "post_io_max_response_time": 194
+        },
+        "RR20-SRTF": {
+          "mean_score": 0.10962537737197976,
+          "mean_response_time": 23.12085607657258,
+          "mean_context_switches": 99.56,
+          "max_waiting_time": 288,
+          "p95_waiting_time": 208.0,
+          "starvation_count": 4660,
+          "priority_mean_waiting_time": 104.10283315844701,
+          "priority_max_waiting_time": 278,
+          "post_io_mean_response_time": 28.248347418626057,
+          "post_io_max_response_time": 192
+        },
+        "MLFQ": {
+          "mean_score": 0.11950145434727855,
+          "mean_response_time": 12.26673731395368,
+          "mean_context_switches": 124.195,
+          "max_waiting_time": 275,
+          "p95_waiting_time": 218.0,
+          "starvation_count": 4758,
+          "priority_mean_waiting_time": 131.56768100734521,
+          "priority_max_waiting_time": 275,
+          "post_io_mean_response_time": 20.413772906032968,
+          "post_io_max_response_time": 49
+        }
+      },
+      "best_comparator": "Tuned RR",
+      "mlfq_difference_vs_best": {
+        "mean": 0.01511691274832221,
+        "ci_low": 0.01348653445150087,
+        "ci_high": 0.016775308637635867
+      }
+    },
+    "batch": {
+      "policies": {
+        "Tuned RR": {
+          "mean_score": 0.13571249820106393,
+          "mean_response_time": 6.870137694169697,
+          "mean_context_switches": 341.01,
+          "max_waiting_time": 501,
+          "p95_waiting_time": 429.0,
+          "starvation_count": 3295,
+          "priority_mean_waiting_time": 261.1869731800766,
+          "priority_max_waiting_time": 501,
+          "post_io_mean_response_time": 11.205318491032777,
+          "post_io_max_response_time": 22
+        },
+        "SRTF": {
+          "mean_score": 0.21679213589351706,
+          "mean_response_time": 111.81851962604183,
+          "mean_context_switches": 26,
+          "max_waiting_time": 520,
+          "p95_waiting_time": 374.3,
+          "starvation_count": 2624,
+          "priority_mean_waiting_time": 161.6536398467433,
+          "priority_max_waiting_time": 520,
+          "post_io_mean_response_time": 68.24675324675324,
+          "post_io_max_response_time": 447
+        },
+        "RR20-SRTF": {
+          "mean_score": 0.06421491570476129,
+          "mean_response_time": 31.68006047245593,
+          "mean_context_switches": 44.925,
+          "max_waiting_time": 504,
+          "p95_waiting_time": 378.0,
+          "starvation_count": 2896,
+          "priority_mean_waiting_time": 169.87126436781608,
+          "priority_max_waiting_time": 504,
+          "post_io_mean_response_time": 77.95423623995053,
+          "post_io_max_response_time": 463
+        },
+        "MLFQ": {
+          "mean_score": 0.14728327576906286,
+          "mean_response_time": 11.566348650666948,
+          "mean_context_switches": 162.24,
+          "max_waiting_time": 501,
+          "p95_waiting_time": 426.3,
+          "starvation_count": 3295,
+          "priority_mean_waiting_time": 262.176245210728,
+          "priority_max_waiting_time": 495,
+          "post_io_mean_response_time": 7.374149659863946,
+          "post_io_max_response_time": 27
+        }
+      },
+      "best_comparator": "RR20-SRTF",
+      "mlfq_difference_vs_best": {
+        "mean": 0.08306836006430156,
+        "ci_low": 0.07762408465961632,
+        "ci_high": 0.08825469056536503
+      }
+    },
+    "cpu_intensive": {
+      "policies": {
+        "Tuned RR": {
+          "mean_score": 0.13981106867325835,
+          "mean_response_time": 5.761351034350067,
+          "mean_context_switches": 442.435,
+          "max_waiting_time": 683,
+          "p95_waiting_time": 550.1,
+          "starvation_count": 2859,
+          "priority_mean_waiting_time": 329.4786399302528,
+          "priority_max_waiting_time": 683,
+          "post_io_mean_response_time": 9.680701754385964,
+          "post_io_max_response_time": 18
+        },
+        "SRTF": {
+          "mean_score": 0.2110473190595618,
+          "mean_response_time": 139.2285417869454,
+          "mean_context_switches": 23.61,
+          "max_waiting_time": 676,
+          "p95_waiting_time": 488.0,
+          "starvation_count": 2122,
+          "priority_mean_waiting_time": 199.96076721883173,
+          "priority_max_waiting_time": 617,
+          "post_io_mean_response_time": 84.72842105263157,
+          "post_io_max_response_time": 613
+        },
+        "RR20-SRTF": {
+          "mean_score": 0.0783963302177122,
+          "mean_response_time": 49.87057307024761,
+          "mean_context_switches": 42.075,
+          "max_waiting_time": 676,
+          "p95_waiting_time": 486.0,
+          "starvation_count": 2278,
+          "priority_mean_waiting_time": 207.46904969485615,
+          "priority_max_waiting_time": 649,
+          "post_io_mean_response_time": 94.88561403508771,
+          "post_io_max_response_time": 627
+        },
+        "MLFQ": {
+          "mean_score": 0.14303263399704882,
+          "mean_response_time": 6.456338497523289,
+          "mean_context_switches": 195.78,
+          "max_waiting_time": 684,
+          "p95_waiting_time": 551.1,
+          "starvation_count": 2859,
+          "priority_mean_waiting_time": 331.57890148212726,
+          "priority_max_waiting_time": 684,
+          "post_io_mean_response_time": 4.6147368421052635,
+          "post_io_max_response_time": 21
+        }
+      },
+      "best_comparator": "RR20-SRTF",
+      "mlfq_difference_vs_best": {
+        "mean": 0.06463630377933664,
+        "ci_low": 0.058500571693412245,
+        "ci_high": 0.0706952366282578
+      }
+    },
+    "io_intensive": {
+      "policies": {
+        "Tuned RR": {
+          "mean_score": 0.11387831887229022,
+          "mean_response_time": 8.851137542860503,
+          "mean_context_switches": 263.915,
+          "max_waiting_time": 321,
+          "p95_waiting_time": 262.0,
+          "starvation_count": 4784,
+          "priority_mean_waiting_time": 170.40772078265468,
+          "priority_max_waiting_time": 321,
+          "post_io_mean_response_time": 15.872025955299208,
+          "post_io_max_response_time": 30
+        },
+        "SRTF": {
+          "mean_score": 0.14663336487192463,
+          "mean_response_time": 33.24212716001378,
+          "mean_context_switches": 113.325,
+          "max_waiting_time": 317,
+          "p95_waiting_time": 256.0,
+          "starvation_count": 4382,
+          "priority_mean_waiting_time": 130.79481755684822,
+          "priority_max_waiting_time": 317,
+          "post_io_mean_response_time": 27.54800528719058,
+          "post_io_max_response_time": 216
+        },
+        "RR20-SRTF": {
+          "mean_score": 0.12036215924304283,
+          "mean_response_time": 25.16369393969575,
+          "mean_context_switches": 125.625,
+          "max_waiting_time": 317,
+          "p95_waiting_time": 257.0,
+          "starvation_count": 4635,
+          "priority_mean_waiting_time": 133.81597038603914,
+          "priority_max_waiting_time": 317,
+          "post_io_mean_response_time": 29.017724104782506,
+          "post_io_max_response_time": 205
+        },
+        "MLFQ": {
+          "mean_score": 0.12421042173124289,
+          "mean_response_time": 11.457081657424173,
+          "mean_context_switches": 159.585,
+          "max_waiting_time": 319,
+          "p95_waiting_time": 263.0,
+          "starvation_count": 4785,
+          "priority_mean_waiting_time": 169.88260179799047,
+          "priority_max_waiting_time": 319,
+          "post_io_mean_response_time": 20.714972362412883,
+          "post_io_max_response_time": 49
+        }
+      },
+      "best_comparator": "Tuned RR",
+      "mlfq_difference_vs_best": {
+        "mean": 0.010332102858952674,
+        "ci_low": 0.008963936298924453,
+        "ci_high": 0.011704141067106289
+      }
+    },
+    "mixed": {
+      "policies": {
+        "Tuned RR": {
+          "mean_score": 0.12917530924401907,
+          "mean_response_time": 8.535368550063636,
+          "mean_context_switches": 380.82,
+          "max_waiting_time": 639,
+          "p95_waiting_time": 470.0,
+          "starvation_count": 4192,
+          "priority_mean_waiting_time": 241.72094395280237,
+          "priority_max_waiting_time": 631,
+          "post_io_mean_response_time": 15.860500483893267,
+          "post_io_max_response_time": 30
+        },
+        "SRTF": {
+          "mean_score": 0.15893455432548861,
+          "mean_response_time": 96.37600375664744,
+          "mean_context_switches": 63.125,
+          "max_waiting_time": 642,
+          "p95_waiting_time": 392.0,
+          "starvation_count": 3187,
+          "priority_mean_waiting_time": 136.39115044247788,
+          "priority_max_waiting_time": 617,
+          "post_io_mean_response_time": 14.20724457348265,
+          "post_io_max_response_time": 469
+        },
+        "RR20-SRTF": {
+          "mean_score": 0.07293583358922634,
+          "mean_response_time": 49.940605521729466,
+          "mean_context_switches": 78.3,
+          "max_waiting_time": 642,
+          "p95_waiting_time": 397.0,
+          "starvation_count": 3607,
+          "priority_mean_waiting_time": 143.89085545722713,
+          "priority_max_waiting_time": 617,
+          "post_io_mean_response_time": 15.759021153048527,
+          "post_io_max_response_time": 475
+        },
+        "MLFQ": {
+          "mean_score": 0.12301085798977465,
+          "mean_response_time": 10.967853169766915,
+          "mean_context_switches": 183.03,
+          "max_waiting_time": 638,
+          "p95_waiting_time": 474.0,
+          "starvation_count": 4180,
+          "priority_mean_waiting_time": 235.388790560472,
+          "priority_max_waiting_time": 631,
+          "post_io_mean_response_time": 17.387114613576664,
+          "post_io_max_response_time": 47
+        }
+      },
+      "best_comparator": "RR20-SRTF",
+      "mlfq_difference_vs_best": {
+        "mean": 0.05007502440054831,
+        "ci_low": 0.04543312130118599,
+        "ci_high": 0.05470749420322445
+      }
+    }
+  },
+  "latency_status": "complete",
+  "mlfq_wins": false,
+  "profile_tuning_opportunity": false,
+  "recommend_ml_next": false,
+  "recommended_policy": "RR20-SRTF",
+  "ml_next_step": "do_not_add_ml",
+  "latency_gate": {
+    "Tuned RR": {
+      "passes_gate": true
+    },
+    "SRTF": {
+      "passes_gate": true
+    },
+    "RR20-SRTF": {
+      "passes_gate": true
+    },
+    "MLFQ": {
+      "passes_gate": true
+    }
+  }
+}

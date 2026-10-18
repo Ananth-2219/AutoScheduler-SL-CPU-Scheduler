@@ -6,3 +6,7 @@ artifacts/*.joblib
 artifacts/*.csv
 results/evaluation.csv
 results/latency.csv
+data/raw/
+data/processed/
+artifacts/real_desktop_ml/*.joblib
+graphify-out/

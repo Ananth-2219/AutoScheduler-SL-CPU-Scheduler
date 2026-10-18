@@ -6,6 +6,221 @@ to select one algorithm for a new workload.
 
 The project is a simulator, not an operating-system kernel scheduler.
 
+The next research phase validates ML on observed Linux desktop traces. Its
+machine-readable contract is `configs/real_desktop_ml.json`; synthetic data is
+limited to tests, stress cases, and optional pretraining. Validate the frozen
+contract with:
+
+```bash
+python main.py real-config
+```
+
+See `docs/REAL_DATA_POLICY.md` for source, privacy, and licensing boundaries.
+See `docs/OFFLINE_REPLAY_CONTRACT.md` for the trace eligibility and
+reconstruction rules used to create offline candidate-screening labels.
+
+### Real Linux trace smoke flow
+
+The collector must run inside the Linux VM because macOS does not expose Linux
+scheduler tracepoints. It traces one pinned CPU while running the workload as
+the original non-root user:
+
+```bash
+sudo /home/knightnm/autoscheduler-tools/capture_linux_trace.sh \
+  /home/knightnm/autoscheduler-captures/smoke-cpu-002 0 -- \
+  stress-ng --cpu 1 --timeout 5s --metrics-brief
+```
+
+For a controlled desktop workload, deploy `tools/run_firefox_probe.sh` and
+`workloads/real/firefox_probe/index.html` with the same repository layout in
+the VM. Test the visible workload without tracing first:
+
+```bash
+/home/knightnm/autoscheduler/tools/run_firefox_probe.sh 8
+```
+
+The probe uses an isolated temporary Firefox profile, loads only the local
+page, performs deterministic DOM and canvas work, and exits after the requested
+duration.
+
+Multiprocess desktop applications may create helpers outside their requested
+CPU affinity. Capture all CPUs while retaining CPU 0 as the workload affinity,
+then detect migrations during validation:
+
+```bash
+sudo /home/knightnm/autoscheduler-tools/capture_linux_trace.sh \
+  --all-cpus /home/knightnm/autoscheduler-captures/smoke-firefox-allcpu-001 \
+  0 -- /home/knightnm/autoscheduler/tools/run_firefox_probe.sh 10
+```
+
+After the all-CPU smoke capture passes, collect one short trace for every real
+workload family:
+
+```bash
+sudo /home/knightnm/autoscheduler/tools/capture_linux_pilot.sh \
+  /home/knightnm/autoscheduler-captures/pilot-001 10
+```
+
+The pilot runs wakeup, CPU, I/O, Firefox, compression, and mixed workloads
+sequentially. It is pipeline validation only, not the final training dataset.
+
+For the full raw-trace collection, the runner records all CPUs for 30 named
+configurations, repeats each configuration ten times, and retains only raw
+trace data, metadata, and logs on the VM. It takes about five hours:
+
+```bash
+sudo /home/knightnm/autoscheduler/tools/capture_linux_full.sh \
+  /home/knightnm/autoscheduler-captures/full-001 60 10
+```
+
+Validate the complete 30-configuration matrix without recording data first:
+
+```bash
+bash /home/knightnm/autoscheduler/tools/capture_linux_full.sh \
+  --dry-run /home/knightnm/autoscheduler-captures/full-001 60 1
+```
+
+Do not export uncompressed reports on the VM during collection; its available
+storage is reserved for the raw capture set.
+
+After exporting `trace.dat` with `trace-cmd report`, import and validate it:
+
+```bash
+python main.py real-trace-import \
+  --report data/raw/linux/smoke-cpu-002/trace.txt \
+  --metadata data/raw/linux/smoke-cpu-002/metadata.json \
+  --output data/processed/linux/smoke-cpu-002.jsonl \
+  --trace-id smoke-cpu-002
+python main.py real-trace-validate data/processed/linux/smoke-cpu-002.jsonl
+```
+
+Raw and processed traces are ignored by Git. Commit only anonymized fixtures,
+manifests, checksums, and aggregate results.
+
+### Cleaning and anonymization
+
+Before sharing or modeling canonical traces, create a separate sanitized copy.
+The cleaner never changes its inputs. It rejects incomplete traces, replaces
+trace and process identifiers, removes machine/user/path/command metadata, and
+keeps only scheduling-relevant fields:
+
+```bash
+python main.py real-trace-clean \
+  data/processed/linux/pilot-001/wakeup-001.jsonl \
+  data/processed/linux/pilot-001/cpu-001.jsonl \
+  data/processed/linux/pilot-001/io-001.jsonl \
+  data/processed/linux/pilot-001/firefox-001.jsonl \
+  data/processed/linux/pilot-001/compression-001.jsonl \
+  data/processed/linux/pilot-001/mixed-001.jsonl \
+  --capture-session pilot-clean \
+  --output data/processed/linux/pilot-001/cleaned.jsonl
+python main.py real-trace-validate data/processed/linux/pilot-001/cleaned.jsonl
+```
+
+Use the cleaned JSONL for feature extraction and offline replay outside the
+private capture workspace. Cleaning makes traces shareable for this research
+workflow; it does not make a trace safe to publish if its timings themselves
+are sensitive.
+
+### Observed-only feature rows
+
+After importing traces, extract decision rows using only events that occurred
+before each decision time. This creates inputs, not model labels or performance
+claims:
+
+```bash
+python main.py real-features \
+  data/processed/linux/pilot-001/cleaned.jsonl \
+  --output data/processed/linux/pilot-001/observed_features.csv
+```
+
+The CSV includes only the feature contract in `configs/real_desktop_ml.json`.
+It cannot train a policy model until a separate, valid policy-cost labeling
+method exists.
+
+### Leakage-safe trace split
+
+Split feature rows before any model fitting. Rows from the same application,
+scenario, and capture session always remain together; this prevents a model
+from training on one moment of a trace and being tested on another:
+
+```bash
+python main.py real-split \
+  data/processed/linux/pilot-001/cleaned_observed_features.csv \
+  --output data/processed/linux/pilot-001/split_manifest.json
+```
+
+The pilot creates a valid 4/1/1 trace-group smoke split, but it is too small
+for model selection or performance claims. Older imported traces without
+scenario metadata are isolated by their anonymized trace ID.
+
+### Prototype-only replay labels
+
+The pilot can create offline-replay action-cost rows to exercise the model
+pipeline. These rows are explicitly development-only and cannot support a
+claim about real Linux scheduler performance:
+
+```bash
+python main.py real-dataset \
+  data/processed/linux/pilot-001/cleaned.jsonl \
+  --output data/processed/linux/pilot-001/pilot_action_costs.csv
+```
+
+Run the prototype model bake-off with observed state features plus a proposed
+action. Each model predicts the replay cost of that action, then picks the
+lowest predicted-cost action for each observed state. The report is development
+only: its labels are offline replay estimates, not Linux kernel measurements.
+
+```bash
+.venv/bin/python main.py model-bakeoff \
+  data/processed/linux/pilot-001/pilot_action_costs.csv \
+  --output results/real_desktop_ml/prototype_bakeoff
+```
+
+It writes `summary.json`, `candidates.csv`, `prototype_comparison_report.md`,
+and `locked_evaluation_report.md` under the output directory. The locked report
+returns `INSUFFICIENT_DATA` until it has all 60 grouped locked-test traces
+required by the frozen collection contract; it never turns a small pilot into a
+passing ML result.
+
+### Synthetic development pipeline
+
+When a real Linux collection is unavailable, exercise the full pipeline with
+deterministic trace-shaped development data. It is intentionally marked
+`SYNTHETIC_DEVELOPMENT_ONLY`; it can test plumbing, not select a final model.
+
+```bash
+.venv/bin/python main.py real-synthetic-capture --repetitions 60 --seed 9001 \
+  --output data/processed/synthetic/prototype/raw.jsonl
+.venv/bin/python main.py real-trace-clean data/processed/synthetic/prototype/raw.jsonl \
+  --capture-session synthetic-prototype --output data/processed/synthetic/prototype/cleaned.jsonl
+.venv/bin/python main.py real-features data/processed/synthetic/prototype/cleaned.jsonl \
+  --output data/processed/synthetic/prototype/observed_features.csv
+.venv/bin/python main.py real-dataset data/processed/synthetic/prototype/cleaned.jsonl \
+  --output data/processed/synthetic/prototype/action_costs.csv
+.venv/bin/python main.py model-bakeoff data/processed/synthetic/prototype/action_costs.csv \
+  --output results/real_desktop_ml/synthetic_prototype
+```
+
+### Offline replay workloads
+
+Create deterministic simulator inputs from completed canonical traces. The
+output records every rejected trace or process, so exclusions stay auditable:
+
+```bash
+python main.py real-replay-build \
+  data/processed/linux/pilot-001/wakeup-001.jsonl \
+  data/processed/linux/pilot-001/cpu-001.jsonl \
+  data/processed/linux/pilot-001/io-001.jsonl \
+  data/processed/linux/pilot-001/firefox-001.jsonl \
+  data/processed/linux/pilot-001/compression-001.jsonl \
+  data/processed/linux/pilot-001/mixed-001.jsonl \
+  --output data/processed/linux/pilot-001/offline_replay_manifest.json
+```
+
+This is offline candidate screening, not evidence that a policy improves the
+real Linux kernel scheduler.
+
 ## Features
 
 - Backward-compatible single CPU-burst processes
@@ -29,6 +244,18 @@ pip install -r requirements.txt
 ```
 
 ## Commands
+
+Open interactive presentation menu:
+
+```bash
+python main.py demo
+```
+
+Use `python main.py demo --no-color` for redirected output or terminals without
+ANSI color support. Menu runs only short live comparisons and reads completed
+research artifacts; it never starts full training or evaluation automatically.
+Choose option `10` for an animated six-policy scheduler race on one generated
+workload. Playback is shortened, but final metrics use complete timelines.
 
 Run the original Phase 1 demonstration:
 
@@ -71,12 +298,19 @@ python main.py dynamic-train
 python main.py dynamic-evaluate
 ```
 
+Evaluate fixed MLFQ and its decision latency:
+
+```bash
+python main.py mlfq-evaluate
+python main.py mlfq-latency
+```
+
 Run a six-policy experiment without replacing historical results:
 
 ```bash
 python main.py train --model results/six_policy/model.joblib --dataset results/six_policy/training.csv
 python main.py evaluate --model results/six_policy/model.joblib --output results/six_policy
-python main.py latency --model results/six_policy/model.joblib --score-summary results/six_policy/summary.json --output results/six_policy
+python main.py latency --model results/six_policy/model.joblib --score-summary results/six_policy/summary.json --output results/six_policy/full_latency
 ```
 
 Use `python main.py <command> --help` to override sample counts, seeds, paths,
@@ -94,6 +328,8 @@ or comparison workload size.
 - `autoscheduler/adaptive.py`: one-time workload classification and execution
 - `autoscheduler/experiments.py`: held-out evaluation and artifacts
 - `autoscheduler/dynamic.py`: state-preserving epoch routing and dynamic experiments
+- `autoscheduler/benefit.py`: observed-state RR-to-SRTF benefit regression
+- `autoscheduler/mlfq_experiment.py`: static MLFQ comparison and decision gates
 - `autoscheduler/cli.py`: train, compare, evaluate, and latency commands
 
 ## Workload Profiles
@@ -195,9 +431,12 @@ adaptive selector does not beat it.
 With six policies (training seed 42, 2,500 workloads; evaluation seed 2026,
 1,000 workloads), Round Robin has mean score 0.13221, SRTF 0.16773, and
 Adaptive 0.13188. The paired Adaptive-minus-frozen-static 95% interval crosses
-zero, so the adaptive statistical gate remains false. A six-policy latency
-smoke run used one sample per profile with no warmups; it is not a full latency
-gate experiment. All outputs are in `results/six_policy/`.
+zero, so the adaptive statistical gate remains false. Full six-policy latency
+results are in `results/six_policy/full_latency/`: seed 3030, 20 measured
+samples per profile, five warmups, and P99 below 10 ms for every measured
+policy at every size. Large-workload P99 is 0.0611 ms for Round Robin and
+6.5507 ms for Adaptive. Round Robin remains recommended. The separate
+one-sample latency smoke artifacts remain in `results/six_policy/`.
 
 ## Dynamic Routing Experiment
 
@@ -219,6 +458,10 @@ epoch length `{5, 10, 20}`, dwell time `{1, 2, 3}` epochs, and confidence
 threshold `{0.0, 0.6, 0.8}` on seed-42 development traces. It selects lowest
 P95 response among candidates whose paired weighted-score confidence interval
 is not worse than Round Robin, then freezes the configuration.
+Dynamic training and tuning now split by trace seed: all epochs from one trace
+stay together across the 70/15/15 train, validation, and test trace groups.
+The saved dynamic model predates this split and has not been retrained; its
+reported accuracy and regret are not leakage-corrected evidence.
 
 `dynamic-evaluate` writes `dynamic_evaluation.csv`, `dynamic_summary.json`, and
 `dynamic_diagnostics.png`. Success requires a negative paired 95% confidence
@@ -226,6 +469,63 @@ interval for Adaptive-minus-RR P95 response, a non-positive upper confidence
 limit for weighted-score difference, and a full routing-path P99 below 10 ms.
 On the 1,000-trace six-policy evaluation (seed 2026), the P95 response gate
 fails, so dynamic routing is ineligible despite passing the other two gates.
+
+## RR-versus-SRTF Benefit Experiment
+
+This conservative experiment starts with a development-tuned Round Robin
+quantum, observes only runtime state for 5, 10, or 20 ticks, then either keeps
+RR or switches once to SRTF. The decision-tree regressor predicts
+`SRTF score - RR score`; SRTF is chosen only when the prediction clears the
+validation-tuned safety margin. Features exclude future arrivals, declared
+total CPU/I/O work, and true remaining burst time.
+
+```bash
+python main.py benefit-train
+python main.py benefit-evaluate
+python main.py benefit-latency
+```
+
+Training uses seed 42 with trace-disjoint 70/15/15 splits. Evaluation uses
+1,000 unseen workloads from seed 4040 and 10,000 paired bootstrap samples from
+seed 4041. Scores use bounds frozen by the original six static policies, so
+adding the selector cannot change RR's normalized score. Latency uses 12, 100,
+and 1,000-process workloads, 20 measured samples per profile, and five warmups.
+
+The ML selector is eligible only if it lowers mean score by at least 1% versus
+tuned RR, its paired 95% confidence interval is entirely below zero, and every
+decision-latency P99 is below 10 ms. RR remains the recommendation when any
+gate fails. Artifacts are written to `results/rr_srtf_benefit/`; prior static
+and dynamic results are preserved.
+
+Seed-4040 result: RR quantum 1, observation window 20, and margin 0.0025 were
+selected. Mean score fell from 0.111959 for tuned RR to 0.037037 (66.92%);
+the paired difference was -0.074922 with 95% CI [-0.077475, -0.072355]. The
+largest measured P99 was 0.358896 ms, so all three gates pass. However, the
+model selected SRTF for 98.1% of workloads. This proves the observed
+RR-then-SRTF policy beats RR under the synthetic objective, but does not yet
+prove ML is necessary; a fixed switch-at-20 hybrid is the next required
+baseline.
+
+## Static MLFQ Baseline
+
+MLFQ uses three FIFO queues with quanta `(2, 4, 8)`. New and I/O-returning
+processes enter the top queue. Full quantum use moves a process down; waiting
+20 ticks moves it up. Higher queues preempt lower queues while preserving the
+interrupted process's unused quantum.
+
+`mlfq-evaluate` compares MLFQ with tuned RR, direct SRTF, and fixed
+RR-for-20-ticks-then-SRTF. It uses 1,000 seed-6060 synthetic workloads with
+randomized process counts and the original frozen six-policy score bounds.
+These workloads are more varied synthetic tests, not real kernel traces.
+`mlfq-latency` uses seed 6062, 20 samples per profile, five warmups, and
+12/100/1,000-process workloads.
+
+Seed-6060 result: RR-20-SRTF wins with mean score `0.089107`. Tuned RR scores
+`0.124592`, MLFQ scores `0.131408`, and SRTF scores `0.174703`. MLFQ loses all
+five profiles, has pooled P95 wait `448` versus RR's `446`, and therefore fails
+score and fairness gates. All policies pass strict P99 `<10 ms`; MLFQ large
+P99 is about `0.150 ms`. Result: keep RR-20-SRTF recommendation and do not add
+ML for MLFQ queue or quantum prediction from this evidence.
 
 Run tests with:
 
