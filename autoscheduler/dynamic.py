@@ -28,9 +28,11 @@ DYNAMIC_FEATURE_NAMES = (
     "observed_service_mean", "observed_service_variance", "priority_mean",
     "ready_wait_mean", "ready_wait_max", "recent_arrivals", "io_returns", "io_return_ratio",
     "active_policy_index", "dwell_remaining_ticks",
+    "first_service_ready_count", "first_service_wait_max", "ready_wait_p50", "ready_wait_p95",
+    "arrival_quiet_ticks",
 )
 DYNAMIC_POLICY_NAMES = tuple(DEPLOYABLE_ALGORITHMS)
-DYNAMIC_SCHEMA_VERSION = 3
+DYNAMIC_SCHEMA_VERSION = 5
 
 
 @dataclass(frozen=True)
@@ -43,10 +45,21 @@ class DynamicRouterConfig:
     fallback_policy: str | None = None
     label_horizon_ticks: int | None = None
     label_continuation: str = "MLFQ"
+    first_service_protection: bool = True
+    explicit_no_switch: bool = False
+    mlfq_quanta: tuple[int, ...] = (2, 4, 8)
+    mlfq_aging_threshold: int = 20
+    response_tail_protection: bool = False
+    arrival_quiet_dwell_periods: int = 1
 
     def __post_init__(self):
+        object.__setattr__(self, "mlfq_quanta", tuple(self.mlfq_quanta))
+        if len(self.mlfq_quanta) != 3 or any(q <= 0 for q in self.mlfq_quanta) or self.mlfq_aging_threshold <= 0:
+            raise ValueError("MLFQ requires three positive quanta and a positive aging threshold")
         if self.epoch_ticks <= 0 or self.dwell_epochs <= 0:
             raise ValueError("epoch_ticks and dwell_epochs must be positive")
+        if type(self.arrival_quiet_dwell_periods) is not int or self.arrival_quiet_dwell_periods < 1:
+            raise ValueError("arrival quiet dwell periods must be a positive integer")
         if not 0.0 <= self.confidence_threshold <= 1.0:
             raise ValueError("confidence_threshold must be between 0 and 1")
         if self.policy_track not in {"realistic", "oracle_simulation"}:
@@ -58,6 +71,12 @@ class DynamicRouterConfig:
             raise ValueError("label continuation must be MLFQ or explicit historical Round Robin")
         if self.label_horizon_ticks is not None and self.label_horizon_ticks < self.epoch_ticks * self.dwell_epochs:
             raise ValueError("label horizon cannot be shorter than minimum dwell")
+        if self.response_tail_protection and (
+            not self.first_service_protection or self.policy_track != "realistic" or self.fallback_policy != "MLFQ"
+            or self.label_continuation != "MLFQ"
+            or self.effective_label_horizon != self.epoch_ticks * self.dwell_epochs
+        ):
+            raise ValueError("tail protection requires first-service protection, realistic MLFQ fallback/continuation and a minimum-dwell horizon")
 
     @property
     def effective_label_horizon(self) -> int:
@@ -68,10 +87,48 @@ def dynamic_policy_names(config: DynamicRouterConfig) -> tuple[str, ...]:
     return DYNAMIC_POLICY_NAMES if config.policy_track == "realistic" else tuple(ALGORITHMS)
 
 
+def dynamic_action_names(config: DynamicRouterConfig) -> tuple[str, ...]:
+    return (*dynamic_policy_names(config), "No Switch") if config.explicit_no_switch else dynamic_policy_names(config)
+
+
+def _protected(features, active, selected, config):
+    return (config.first_service_protection and active == "MLFQ" and selected != active
+            and features["first_service_ready_count"] > 0)
+
+
+def _resolve_action(action, active):
+    return active if action == "No Switch" else action
+
+
+def _tail_action(features, active, selected, config):
+    """Bound excursions to the training horizon; assess observed pressure only."""
+    if not config.response_tail_protection:
+        return selected, None
+    if active != "MLFQ":
+        if features["dwell_remaining_ticks"] <= 0:
+            return "MLFQ", "excursion_expired"
+        unserved = features["first_service_ready_count"]
+        urgent = unserved > 0 and (
+            unserved >= 2 or features["first_service_wait_max"] >= config.epoch_ticks
+            or features["ready_wait_p95"] >= config.epoch_ticks or features["recent_arrivals"] > 0)
+        return ("MLFQ", "first_response_return") if urgent else (selected, None)
+    if selected != "MLFQ" and not features["first_service_ready_count"]:
+        # One observed quiet dwell establishes a lull; v6 adds another before
+        # committing to an excursion that cannot immediately react to arrivals.
+        quiet_window = config.epoch_ticks * config.dwell_epochs * config.arrival_quiet_dwell_periods
+        if features["arrival_quiet_ticks"] < quiet_window:
+            return active, "arrival_risk"
+        if features["io_returns"] > 0 and features["ready_count"] > 1 and features["ready_wait_p95"] >= config.epoch_ticks:
+            return active, "io_ready_pressure"
+    return selected, None
+
+
 def dynamic_policy_parameters(config: DynamicRouterConfig, priority_rr_config: dict) -> dict:
     registry = {**ALGORITHMS, **DEPLOYABLE_ALGORITHMS}
     parameters = {name: dict(registry[name][1]) for name in dynamic_policy_names(config)}
     parameters["Priority RR"] = dict(priority_rr_config)
+    if "MLFQ" in parameters:
+        parameters["MLFQ"] = {"quanta": config.mlfq_quanta, "aging_threshold": config.mlfq_aging_threshold}
     # Canonical JSON representation, including MLFQ's tuple-valued quanta.
     return json.loads(json.dumps(parameters))
 
@@ -116,6 +173,9 @@ class _State:
     total_io_returns: int = 0
     completed_burst_durations: list[int] = field(default_factory=list)
     burst_service: dict[str, int] = field(default_factory=dict)
+    mlfq_quanta: tuple[int, ...] = (2, 4, 8)
+    mlfq_aging_threshold: int = 20
+    last_observed_arrival: int | None = None
 
 
 @dataclass(frozen=True)
@@ -161,13 +221,16 @@ def generate_dynamic_workload(
     return DynamicWorkload(seed, profiles, tuple(processes))
 
 
-def _new_state(processes: Iterable[Process]) -> _State:
+def _new_state(processes: Iterable[Process], config: DynamicRouterConfig | None = None) -> _State:
     pending = sorted(copy.deepcopy(list(processes)), key=lambda process: (process.arrival_time, process.pid))
     if len({process.pid for process in pending}) != len(pending):
         raise ValueError("process IDs must be unique")
     for process in pending:
         process.reset()
-    return _State(pending, [], [], [], [])
+    state = _State(pending, [], [], [], [])
+    if config is not None:
+        state.mlfq_quanta, state.mlfq_aging_threshold = config.mlfq_quanta, config.mlfq_aging_threshold
+    return state
 
 
 def _release(state: _State, until: int) -> None:
@@ -177,6 +240,7 @@ def _release(state: _State, until: int) -> None:
         events.append((process.arrival_time, process.pid, process, process.priority, False))
         state.recent_arrivals += 1
         state.arrivals_seen += 1
+        state.last_observed_arrival = process.arrival_time
     blocked = []
     for wake_time, process, priority, from_io in state.blocked:
         if wake_time <= until:
@@ -215,7 +279,7 @@ def _rebuild_ready(state: _State, policy: str, priority_rr_config: dict) -> None
 
 def _age_mlfq(state: _State) -> None:
     for item in sorted(state.ready, key=lambda candidate: candidate.sequence):
-        if item.queue_level > 0 and state.current_time - item.aging_since >= 20:
+        if item.queue_level > 0 and state.current_time - item.aging_since >= state.mlfq_aging_threshold:
             item.queue_level -= 1
             item.quantum_used = 0
             item.aging_since = state.current_time
@@ -267,11 +331,11 @@ def _dispatch(
         if policy in {"Round Robin", "Priority RR"}:
             run_for = min(run_for, priority_rr_config["quantum"])
         elif policy == "MLFQ":
-            run_for = min(run_for, (2, 4, 8)[ready.queue_level] - ready.quantum_used)
+            run_for = min(run_for, state.mlfq_quanta[ready.queue_level] - ready.quantum_used)
             if ready.queue_level > 0:
                 events = [state.pending[0].arrival_time] if state.pending else []
                 events.extend(wake for wake, *_ in state.blocked)
-                events.extend(item.aging_since + 20 for item in state.ready if item.queue_level > 0)
+                events.extend(item.aging_since + state.mlfq_aging_threshold for item in state.ready if item.queue_level > 0)
                 if events:
                     run_for = min(run_for, max(0, min(events) - state.current_time))
         elif policy == "SRTF":
@@ -293,7 +357,7 @@ def _dispatch(
         _release(state, state.current_time)
         first_run = False
         if policy == "MLFQ":
-            if not process.remaining_time or ready.quantum_used >= (2, 4, 8)[ready.queue_level]:
+            if not process.remaining_time or ready.quantum_used >= state.mlfq_quanta[ready.queue_level]:
                 break
             _age_mlfq(state)
             if any(item.queue_level < ready.queue_level for item in state.ready):
@@ -311,7 +375,7 @@ def _dispatch(
         level, used = 0, 0
         if policy == "MLFQ":
             level, used = ready.queue_level, ready.quantum_used
-            if used >= (2, 4, 8)[level]:
+            if used >= state.mlfq_quanta[level]:
                 level, used = min(level + 1, 2), 0
         state.ready.append(_Ready(state.current_time, state.sequence, process, process.priority, False, level, used))
         state.sequence += 1
@@ -366,6 +430,7 @@ def extract_dynamic_features(
         if pid != "CS":
             service[pid] = service.get(pid, 0) + end - start
     durations = state.completed_burst_durations
+    first_waits = [max(0, state.current_time - item.time) for item in state.ready if item.process.pid not in service]
     return {
         "ready_count": float(len(state.ready)), "blocked_count": float(len(state.blocked)),
         "completed_burst_mean": mean(durations) if durations else 0.0,
@@ -380,6 +445,11 @@ def extract_dynamic_features(
         "io_return_ratio": state.io_returns / max(1, state.recent_arrivals + state.io_returns),
         "active_policy_index": float(tuple(dict.fromkeys((*DYNAMIC_POLICY_NAMES, *ALGORITHMS))).index(active_policy)),
         "dwell_remaining_ticks": float(max(0, dwell_remaining_ticks)),
+        "first_service_ready_count": float(len(first_waits)),
+        "first_service_wait_max": float(max(first_waits, default=0)),
+        "ready_wait_p50": _percentile(waits, .5), "ready_wait_p95": _percentile(waits, .95),
+        "arrival_quiet_ticks": float(max(0, state.current_time - state.last_observed_arrival))
+                               if state.last_observed_arrival is not None else 0.,
     }
 
 
@@ -417,7 +487,7 @@ def run_dynamic(
         raise ValueError("runtime dynamic configuration differs from trained model; retrain")
     if hasattr(model, "policy_set_") and tuple(model.policy_set_) != policies:
         raise ValueError("runtime policy set differs from trained model; retrain")
-    state = _new_state(processes)
+    state = _new_state(processes, config)
     rr_config = _policy_config(priority_rr_config)
     if config.policy_track == "realistic" and rr_config != ALGORITHMS["Priority RR"][1]:
         raise ValueError("realistic routing requires the frozen Priority RR parameters")
@@ -446,17 +516,23 @@ def run_dynamic(
                     raise ValueError("an unavailable model requires an explicit fallback policy")
                 selected, confidence = config.fallback_policy, 0.0
             else:
-                selected, confidence = _prediction(model, features, policies)
+                selected, confidence = _prediction(model, features, dynamic_action_names(config))
+                selected = _resolve_action(selected, active)
             fallback = config.fallback_policy is not None and (model is None or confidence < config.confidence_threshold)
             if fallback:
                 selected = config.fallback_policy
+            selected, safety_reason = _tail_action(features, active, selected, config)
+            safety_return = safety_reason in {"excursion_expired", "first_response_return"}
             # Cost regressors use an absolute predicted advantage over the active
             # policy. This is a margin safeguard, not a calibrated probability.
             margin_ok = not hasattr(model, "switch_allowed") or model.switch_allowed(features, active, selected)
             dwell_elapsed = state.current_time - last_switch >= config.dwell_epochs * config.epoch_ticks
-            accepted = selected != active and dwell_elapsed and (fallback or (confidence >= config.confidence_threshold and margin_ok))
+            protected = _protected(features, active, selected, config)
+            accepted = selected != active and dwell_elapsed and not protected and (safety_return or fallback or (confidence >= config.confidence_threshold and margin_ok))
             reason = (
-                "fallback_accepted" if accepted and fallback else
+                "response_dwell_blocked" if safety_return and not dwell_elapsed else
+                safety_reason if safety_reason is not None else
+                "first_service_protection" if protected else "fallback_accepted" if accepted and fallback else
                 "accepted" if accepted else "same_policy" if selected == active else
                 "dwell_blocked" if fallback and not dwell_elapsed else
                 "low_confidence" if confidence < config.confidence_threshold else
@@ -490,7 +566,12 @@ def _counterfactual_label(
     expiry = state.current_time + config.effective_label_horizon
     boundary = ((expiry + config.epoch_ticks - 1) // config.epoch_ticks) * config.epoch_ticks
     continuation = config.label_continuation
-    for policy in dict.fromkeys((*policies, continuation)):
+    features = extract_dynamic_features(state, active_policy)
+    for action in dict.fromkeys((*policies, continuation)):
+        policy = _resolve_action(action, active_policy)
+        policy, _ = _tail_action(features, active_policy, policy, config)
+        if _protected(features, active_policy, policy, config):
+            policy = active_policy
         trial = copy.deepcopy(state)
         _switch_policy(trial, active_policy, policy)
         while (trial.pending or trial.ready or trial.blocked) and trial.current_time < boundary:
@@ -507,7 +588,7 @@ def _counterfactual_label(
             _dispatch(trial, policy, priority_rr_config)
         _switch_policy(trial, policy, continuation)
         _run_to_completion(trial, continuation, priority_rr_config)
-        results[policy] = _simulation(trial, policy)
+        results[action] = _simulation(trial, action)
     if references is None:
         # Direct callers still get one fixed reference scale, never per-action
         # normalization. Dataset generation supplies full-workload static bounds.
@@ -515,7 +596,9 @@ def _counterfactual_label(
     baseline = score_result_against_reference(results[continuation], references)
     scores = {policy: score_result_against_reference(results[policy], references) - baseline for policy in policies}
     label = min(policies, key=lambda policy: (scores[policy], policies.index(policy)))
-    if active_policy in scores and scores[active_policy] <= scores[label] + 1e-12:
+    if "No Switch" in scores and scores["No Switch"] <= scores[label] + 1e-12:
+        label = "No Switch"
+    elif active_policy in scores and scores[active_policy] <= scores[label] + 1e-12:
         label = active_policy
     return label, scores
 
@@ -524,7 +607,7 @@ def _training_states(
     processes: Iterable[Process], config: DynamicRouterConfig, priority_rr_config: dict,
     behavior_policy: str = "Round Robin", behavior_seed: int = 0, behavior_model=None,
 ) -> list[tuple[_State, str, int]]:
-    state, states, next_epoch = _new_state(processes), [], config.epoch_ticks
+    state, states, next_epoch = _new_state(processes, config), [], config.epoch_ticks
     active, last_switch = config.initial_policy, 0
     randomizer = random.Random(behavior_seed)
     policies = dynamic_policy_names(config)
@@ -540,11 +623,12 @@ def _training_states(
             while next_epoch <= state.current_time:
                 next_epoch += config.epoch_ticks
             dwell = max(0, last_switch + config.dwell_epochs * config.epoch_ticks - state.current_time)
+            features = extract_dynamic_features(state, active, dwell)
             if not dwell:
                 states.append((copy.deepcopy(state), active, dwell))
             if behavior_model is not None:
-                features = extract_dynamic_features(state, active, dwell)
-                selected, confidence = _prediction(behavior_model, features, policies)
+                selected, confidence = _prediction(behavior_model, features, dynamic_action_names(config))
+                selected = _resolve_action(selected, active)
                 margin_ok = not hasattr(behavior_model, "switch_allowed") or behavior_model.switch_allowed(features, active, selected)
                 if confidence < config.confidence_threshold and config.fallback_policy is not None:
                     selected, allow = config.fallback_policy, True
@@ -553,7 +637,10 @@ def _training_states(
             else:
                 selected = randomizer.choice(policies) if behavior_policy == "explore" else behavior_policy
                 allow = True
-            if not dwell and allow and selected != active:
+            selected, safety_reason = _tail_action(features, active, selected, config)
+            if safety_reason in {"excursion_expired", "first_response_return"}:
+                allow = True
+            if not dwell and allow and selected != active and not _protected(features, active, selected, config):
                 _switch_policy(state, active, selected)
                 active, last_switch = selected, state.current_time
             state.recent_arrivals = state.io_returns = 0
@@ -582,6 +669,8 @@ def build_dynamic_dataset(
         density = (3, 6, 12, 18)[(index // len(behaviors)) % 4]
         if development:
             from autoscheduler.development_workloads import DEV_FAMILIES, generate_development_workload
+            if development == "v4":
+                from autoscheduler.development_workloads import generate_development_workload_v4 as generate_development_workload
             workload = generate_development_workload(
                 seed * 1_000_000 + index,
                 family=DEV_FAMILIES[(index // len(behaviors)) % len(DEV_FAMILIES)],
@@ -593,7 +682,7 @@ def build_dynamic_dataset(
         for epoch, (state, active, dwell) in enumerate(_training_states(
             workload.processes, config, rr_config, behavior, workload.seed, behavior_model,
         )):
-            label, scores = _counterfactual_label(state, config.epoch_ticks, rr_config, policies, active, dwell,
+            label, scores = _counterfactual_label(state, config.epoch_ticks, rr_config, dynamic_action_names(config), active, dwell,
                                                  config=config, references=references)
             row = extract_dynamic_features(state, active, dwell)
             ordered = sorted(scores.values())

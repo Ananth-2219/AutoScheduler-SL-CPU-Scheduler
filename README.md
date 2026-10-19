@@ -449,7 +449,17 @@ simulation router; SJF and SRTF are never deployable claims.
 Inputs contain observed completed-burst statistics, cumulative CPU service,
 ready/blocked queue sizes, priorities, waits, arrivals, I/O returns, and current
 router policy/dwell state. They exclude remaining work and future events. The
-router starts with Round Robin by default and switches only at safe dispatch
+schema-5 inputs include first-service ready count/wait, ready-wait quantiles,
+and elapsed time since the last observed arrival.
+Departures from MLFQ are blocked while an observed ready job has received no CPU;
+switching remains possible after first service. An explicit `No Switch` action
+holds the current policy. The cost tree exposes benefits relative to MLFQ continuation.
+With `--response-tail-protection`, departures also require a quiet arrival
+interval and avoid I/O-return pressure. Excursions return to MLFQ at the first
+legal review after minimum dwell; learned margins and no-switch cannot renew
+them. Safety returns retain dwell and dispatch boundaries. This option requires
+`--fallback-policy MLFQ`; historical RR/hold defaults remain available.
+The router starts with Round Robin by default and switches only at safe dispatch
 boundaries. `--initial-policy MLFQ --fallback-policy MLFQ` explicitly selects
 MLFQ startup and low-confidence/unavailable-model fallback. The historical
 default fallback, `hold`, keeps the current policy. Fallback also respects dwell.
@@ -458,11 +468,14 @@ a predicted cost-improvement margin of 0.005; that margin is not a probability.
 
 Development traces include mixed cohorts, sustained arrivals, low load, long
 I/O, repeated changes, and homogeneous batch controls. Family and rollout policy
-are crossed independently. `--workload-suite historical` retains the older
+are crossed independently. The default `--workload-suite v4` adds counts
+3/6/12/24/48, stochastic arrivals, and sparse long-I/O controls, without outcome
+filtering. `--workload-suite development` retains the v3 development generator;
+`--workload-suite historical` retains the older
 cohort-only development generator. Training
 includes each eligible static rollout, exploration, and train-only pilot model
 rollouts. Whole trace seeds stay in disjoint 70/15/15 groups, recorded before
-fitting. Candidate selection uses realized scheduling scores on separate
+fitting. Candidate selection prioritizes safety eligibility, then realized scheduling scores on separate
 development workloads. The static comparator is selected from whole-workload
 development performance. Accuracy, confusion, tie ambiguity, and regret remain
 diagnostics rather than the optimization target.
@@ -471,11 +484,15 @@ diagnostics rather than the optimization target.
 `--model-kind classifier` to compare the decision-tree classifier, including
 balanced-class candidates. Router settings are explicit by default; the optional
 `--tune-router` retains the older synthetic router search. New models use schema
-version 3 and paths under `artifacts/dynamic_v3/`; evaluation defaults to
-`results/dynamic_v3/`. Loading
+version 5 and paths under `artifacts/dynamic_v5/`; evaluation defaults to
+`results/dynamic_v5/`. Dynamic training saves the evaluated train-only model
+without a refit that could invalidate its measured safety. Loading
 checks features, estimator dimensions, policy order/parameters, and frozen
-router configuration. Schema-2 and historical five/six-policy dynamic models require
+router configuration. Schema-2/3/4 and historical five/six-policy dynamic models require
 retraining and are deliberately rejected by the active loader.
+If every candidate fails development constraints, saved models are explicitly
+diagnostic-only and family selection returns no ML candidate. Original RR-relative
+eligibility does not imply development eligibility or authorize promotion.
 
 Corrected labels exclude dwell-blocked states. Each action persists through
 minimum dwell until the next legal global review and dispatch boundary, then
@@ -496,18 +513,44 @@ Synthetic ticks are not kernel measurements.
 
 The historical schema-2 comparison is documented in
 [`results/dynamic_v2_20261019/REPORT.md`](results/dynamic_v2_20261019/REPORT.md).
-The corrective experiment is documented in
+The historical schema-3 corrective experiment is documented in
 [`results/dynamic_v3_20261019/REPORT.md`](results/dynamic_v3_20261019/REPORT.md).
-Reproduce it into fresh versioned paths with:
+The historical focused safety-constrained experiment is documented in
+[`results/dynamic_v4_20261019/REPORT.md`](results/dynamic_v4_20261019/REPORT.md).
+The response-tail investigation and v5 experiment are documented in
+[`results/dynamic_v5_20261019/DIAGNOSIS.md`](results/dynamic_v5_20261019/DIAGNOSIS.md)
+and [`results/dynamic_v5_20261019/REPORT.md`](results/dynamic_v5_20261019/REPORT.md).
+V5 uses 144/84/240 fresh training/validation/audit workloads with the unchanged
+balanced development generator. It does not tune on the previous 1,000-workload
+benchmark or locked real traces. Experimental MLFQ parameters match the
+development-selected static control; registry and real-contract defaults remain
+unchanged. Reproduce with the preserved local v4 cost model and original source:
 
 ```bash
-.venv/bin/python -m autoscheduler.dynamic_v3_experiment \
-  --output results/dynamic_v3_reproduction --artifacts artifacts/dynamic_v3_reproduction
+mkdir -p artifacts/dynamic_v5_reproduction
+cp -a artifacts/dynamic_v5_20261019/before_source artifacts/dynamic_v5_reproduction/
+.venv/bin/python -m autoscheduler.dynamic_v5_experiment \
+  --output results/dynamic_v5_reproduction --artifacts artifacts/dynamic_v5_reproduction
 ```
 
 It remains **SYNTHETIC_DEVELOPMENT_ONLY**. Final real-data selection still
 requires cleaned captures, the real grouped split, and the frozen real-desktop
 gates. The Azure pipeline and real replay label provenance are unchanged.
+
+The final synthetic checkpoint is
+[`results/dynamic_v6_20261019/REPORT.md`](results/dynamic_v6_20261019/REPORT.md).
+V6 tests a longer observed arrival-quiet admission window. It is **not promoted**:
+the new model regresses against v5 and the prior frozen static response envelope,
+despite passing its own development-selected-comparator gates. Keep v5 as a
+research candidate and MLFQ `(1,2,4)`, aging 40, as the simulator recommendation.
+Synthetic tuning is closed; the next phase is the interactive dashboard.
+
+Future backend/frontend integrations should read
+[`configs/research_status.json`](configs/research_status.json) for versioned
+model status, artifact checksums, dataset-scoped metrics with units, gates, and
+recommendations. Regenerate it with
+`.venv/bin/python -m autoscheduler.research_status`; no ML model is approved for
+deployment and simulator ticks are not Linux response-time measurements.
 
 `artifacts/dynamic_model.json`, `results/dynamic/`, and
 `results/six_policy/dynamic*` are preserved historical artifacts. Their old

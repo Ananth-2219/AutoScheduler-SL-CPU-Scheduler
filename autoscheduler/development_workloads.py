@@ -63,3 +63,25 @@ def generate_development_workload(seed: int, family: str | None = None,
                 cpu, io = (rng.randint(10, 30),), ()
         processes.append(Process(f"P{index + 1}", arrival, sum(cpu), priority, cpu, io))
     return DevelopmentWorkload(seed, family, processes, tuple(profiles))
+
+
+def generate_development_workload_v4(seed: int, family: str | None = None,
+                                     process_count: int | None = None) -> DevelopmentWorkload:
+    """Balanced families, broader counts and unpredictable arrivals; no outcome filtering."""
+    rng = random.Random(seed)
+    family = family or rng.choice(DEV_FAMILIES)
+    count = process_count if process_count is not None else rng.choice((3, 6, 12, 24, 48))
+    workload = generate_development_workload(seed, family, count)
+    arrival = 0
+    for index, process in enumerate(workload.processes):
+        if family == "sustained_arrivals":
+            arrival += int(rng.expovariate(1 / 8)) if seed % 2 else rng.choice((0, 1, 3, 15, 30))
+            process.arrival_time = arrival
+        elif family == "long_io" and seed % 2 == 0:
+            # A prespecified sparse, long-I/O control where FCFS can win.
+            process.cpu_bursts, process.io_bursts = (20, 20, 20), (100, 100)
+            process.burst_time, process.remaining_time = 60, 20
+        elif family == "repeated_changes":
+            phase = min(4, index * 5 // count)
+            process.arrival_time += phase * (seed % 61)
+    return workload

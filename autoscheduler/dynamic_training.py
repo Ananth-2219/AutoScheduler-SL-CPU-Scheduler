@@ -62,6 +62,8 @@ def prepare_validation(traces: int, seed: int, config: DynamicRouterConfig, prio
     for index in range(traces):
         if development:
             from autoscheduler.development_workloads import DEV_FAMILIES, generate_development_workload
+            if development == "v4":
+                from autoscheduler.development_workloads import generate_development_workload_v4 as generate_development_workload
             workload = generate_development_workload(seed * 1_000_000 + index,
                                                       DEV_FAMILIES[index % len(DEV_FAMILIES)])
         else:
@@ -77,16 +79,42 @@ def prepare_validation(traces: int, seed: int, config: DynamicRouterConfig, prio
     return cases, {"seed": seed, "traces": traces, "static_scores": means, "static_baseline": comparator}
 
 
-def validation_metrics(model, cases, config: DynamicRouterConfig, priority_rr_config=None) -> dict:
+def validation_metrics(model, cases, config: DynamicRouterConfig, priority_rr_config=None,
+                       baseline_results=None) -> dict:
     """Candidate selection uses realized schedules on development workloads."""
-    scores, responses, starvations = [], [], []
+    from autoscheduler.experiments import paired_bootstrap_ci
+    if baseline_results is None:
+        policies = dynamic_policy_names(config)
+        baseline = min(policies, key=lambda name: mean(
+            score_result_against_reference(static[name], references) for _, static, references in cases))
+        baseline_results = [static[baseline] for _, static, _ in cases]
+    scores, responses, starvations, latencies = [], [], [], []
     for workload, _, references in cases:
         result = run_dynamic(workload.processes, model, config, priority_rr_config)
         scores.append(score_result_against_reference(result.simulation, references))
         responses.append(_percentile([metric.response_time for metric in result.simulation.process_metrics], .95))
         starvations.append(aggregate_fairness(result.simulation.process_metrics)["starvation_count"])
+        latencies.append(result.transition_p99_ms)
+    differences = {"score": [], "p95_response": [], "starvation": [], "rr_score": [], "rr_p95_response": []}
+    for index, ((_, static, references), baseline) in enumerate(zip(cases, baseline_results)):
+        differences["score"].append(scores[index] - score_result_against_reference(baseline, references))
+        differences["p95_response"].append(responses[index] - _percentile([m.response_time for m in baseline.process_metrics], .95))
+        differences["starvation"].append(starvations[index] - aggregate_fairness(baseline.process_metrics)["starvation_count"])
+        differences["rr_score"].append(scores[index] - score_result_against_reference(static["Round Robin"], references))
+        differences["rr_p95_response"].append(responses[index] - _percentile([m.response_time for m in static["Round Robin"].process_metrics], .95))
+    intervals = {name: (paired_bootstrap_ci(values) if min(values) != max(values) else
+                 {"mean": values[0], "ci_low": values[0], "ci_high": values[0]}) for name, values in differences.items()}
+    gates = {"score": intervals["score"]["ci_high"] < 0,
+             "p95_response": intervals["p95_response"]["ci_high"] <= 0,
+             "starvation": intervals["starvation"]["mean"] <= 0,
+             "latency": max(latencies) < 10,
+             "original_rr_score": intervals["rr_score"]["ci_high"] <= 0,
+             "original_rr_p95": intervals["rr_p95_response"]["ci_high"] < 0}
     return {
         "validation_schedule_score": mean(scores),
         "validation_schedule_p95_response": mean(responses),
         "validation_schedule_starvation": mean(starvations),
+        "validation_schedule_eligible": all(gates.values()),
+        "validation_schedule_gates": gates, "validation_schedule_intervals": intervals,
+        "validation_schedule_max_workload_p99_ms": max(latencies),
     }

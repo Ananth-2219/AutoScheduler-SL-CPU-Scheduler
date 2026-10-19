@@ -62,8 +62,8 @@ class DynamicV3AccountingTests(unittest.TestCase):
         self.assertTrue(all(end > start for _, start, end in result.timeline))
         self.assertEqual(sum(end - start for pid, start, end in result.timeline if pid != "CS"), 11)
 
-    def test_corrected_feature_semantics_require_schema_version_three(self):
-        self.assertEqual(DYNAMIC_SCHEMA_VERSION, 3)
+    def test_active_feature_semantics_require_current_schema(self):
+        self.assertEqual(DYNAMIC_SCHEMA_VERSION, 5)
 
 
 class _NeverAskedModel:

@@ -6,6 +6,9 @@ artifacts/*.joblib
 artifacts/*.csv
 /artifacts/dynamic_v2*/
 /artifacts/dynamic_v3*/
+/artifacts/dynamic_v4*/
+/artifacts/dynamic_v5*/
+/artifacts/dynamic_v6*/
 results/evaluation.csv
 results/latency.csv
 data/raw/
