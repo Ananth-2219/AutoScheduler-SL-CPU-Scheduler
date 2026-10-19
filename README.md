@@ -440,35 +440,80 @@ one-sample latency smoke artifacts remain in `results/six_policy/`.
 
 ## Dynamic Routing Experiment
 
-`dynamic-train` creates traces with three distinct workload cohorts injected at
-simulated times `0`, `20`, and `40`. Existing processes continue running, so a
-policy change must preserve remaining CPU work, I/O events, priority, wait
-history, and completed work. Reviews occur at fixed epochs but take effect only
-at a dispatch boundary. SRTF can interrupt its own running burst at an
-arrival or I/O return; policy changes still wait for a dispatch boundary.
+The corrected router defaults to the deployable policy set: FCFS, Round Robin
+quantum 2, Priority, Priority RR `(2, 8, 1)`, and MLFQ `(2, 4, 8)` with aging 20.
+The six-policy simulation comparison remains available. Pass
+`dynamic-train --policy-track oracle_simulation` to explicitly train its oracle
+simulation router; SJF and SRTF are never deployable claims.
 
-The router starts with Round Robin. It observes ready and blocked queue state,
-remaining CPU work, priorities, recent arrivals, and I/O returns. A decision
-tree selects among all six policies. Low-confidence or dwell-time-blocked
-decisions keep the active policy.
+Inputs contain observed completed-burst statistics, cumulative CPU service,
+ready/blocked queue sizes, priorities, waits, arrivals, I/O returns, and current
+router policy/dwell state. They exclude remaining work and future events. The
+router starts with Round Robin by default and switches only at safe dispatch
+boundaries. `--initial-policy MLFQ --fallback-policy MLFQ` explicitly selects
+MLFQ startup and low-confidence/unavailable-model fallback. The historical
+default fallback, `hold`, keeps the current policy. Fallback also respects dwell.
+Classifiers retain confidence and dwell safeguards. Cost trees retain dwell and
+a predicted cost-improvement margin of 0.005; that margin is not a probability.
 
-Training labels run a next-epoch counterfactual from the same state for every
-static policy, then complete each trial with Round Robin. `dynamic-train` tunes
-epoch length `{5, 10, 20}`, dwell time `{1, 2, 3}` epochs, and confidence
-threshold `{0.0, 0.6, 0.8}` on seed-42 development traces. It selects lowest
-P95 response among candidates whose paired weighted-score confidence interval
-is not worse than Round Robin, then freezes the configuration.
-Dynamic training and tuning now split by trace seed: all epochs from one trace
-stay together across the 70/15/15 train, validation, and test trace groups.
-The saved dynamic model predates this split and has not been retrained; its
-reported accuracy and regret are not leakage-corrected evidence.
+Development traces include mixed cohorts, sustained arrivals, low load, long
+I/O, repeated changes, and homogeneous batch controls. Family and rollout policy
+are crossed independently. `--workload-suite historical` retains the older
+cohort-only development generator. Training
+includes each eligible static rollout, exploration, and train-only pilot model
+rollouts. Whole trace seeds stay in disjoint 70/15/15 groups, recorded before
+fitting. Candidate selection uses realized scheduling scores on separate
+development workloads. The static comparator is selected from whole-workload
+development performance. Accuracy, confusion, tie ambiguity, and regret remain
+diagnostics rather than the optimization target.
 
-`dynamic-evaluate` writes `dynamic_evaluation.csv`, `dynamic_summary.json`, and
-`dynamic_diagnostics.png`. Success requires a negative paired 95% confidence
-interval for Adaptive-minus-RR P95 response, a non-positive upper confidence
-limit for weighted-score difference, and a full routing-path P99 below 10 ms.
-On the 1,000-trace six-policy evaluation (seed 2026), the P95 response gate
-fails, so dynamic routing is ineligible despite passing the other two gates.
+`dynamic-train --model-kind policy_cost` is the default. Use
+`--model-kind classifier` to compare the decision-tree classifier, including
+balanced-class candidates. Router settings are explicit by default; the optional
+`--tune-router` retains the older synthetic router search. New models use schema
+version 3 and paths under `artifacts/dynamic_v3/`; evaluation defaults to
+`results/dynamic_v3/`. Loading
+checks features, estimator dimensions, policy order/parameters, and frozen
+router configuration. Schema-2 and historical five/six-policy dynamic models require
+retraining and are deliberately rejected by the active loader.
+
+Corrected labels exclude dwell-blocked states. Each action persists through
+minimum dwell until the next legal global review and dispatch boundary, then
+continues with MLFQ. Idle jumps are reviewed before late jobs dispatch. Costs
+use fixed full-workload reference bounds and subtract immediate MLFQ continuation
+from the same prefix. Future simulator outcomes supply offline targets only;
+they are never inputs. Queue aging has its own clock and preserves observed
+ready waiting time. MLFQ reselects after nonzero dispatch overhead without
+charging twice or recording a zero-service dispatch.
+
+Evaluation preserves the original seed-2026 workload generator. Score weights
+and gate thresholds are unchanged. Metric normalization uses bounds fixed by
+the six static simulation references, so adding a candidate cannot change the
+scale. Reports retain the original Adaptive-minus-RR gates and add comparisons
+against the frozen eligible static comparator, starvation, signed regret to
+the best eligible static policy on each workload, switching, and decision time.
+Synthetic ticks are not kernel measurements.
+
+The historical schema-2 comparison is documented in
+[`results/dynamic_v2_20261019/REPORT.md`](results/dynamic_v2_20261019/REPORT.md).
+The corrective experiment is documented in
+[`results/dynamic_v3_20261019/REPORT.md`](results/dynamic_v3_20261019/REPORT.md).
+Reproduce it into fresh versioned paths with:
+
+```bash
+.venv/bin/python -m autoscheduler.dynamic_v3_experiment \
+  --output results/dynamic_v3_reproduction --artifacts artifacts/dynamic_v3_reproduction
+```
+
+It remains **SYNTHETIC_DEVELOPMENT_ONLY**. Final real-data selection still
+requires cleaned captures, the real grouped split, and the frozen real-desktop
+gates. The Azure pipeline and real replay label provenance are unchanged.
+
+`artifacts/dynamic_model.json`, `results/dynamic/`, and
+`results/six_policy/dynamic*` are preserved historical artifacts. Their old
+accuracy uses a different label set/split, and their scores used candidate-
+dependent normalization. They must not be compared directly with corrected
+scores or presented as deployable-policy evidence.
 
 ## RR-versus-SRTF Benefit Experiment
 

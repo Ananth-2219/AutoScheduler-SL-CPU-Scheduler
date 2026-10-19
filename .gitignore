@@ -4,6 +4,8 @@ __pycache__/
 .cache/
 artifacts/*.joblib
 artifacts/*.csv
+/artifacts/dynamic_v2*/
+/artifacts/dynamic_v3*/
 results/evaluation.csv
 results/latency.csv
 data/raw/
