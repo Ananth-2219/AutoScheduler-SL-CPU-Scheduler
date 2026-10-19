@@ -49,8 +49,8 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     assert.equal(await page.getByRole('button',{name:'Step +1'}).isDisabled(),true);
     assert.match(await page.locator('.live-metrics .metric').nth(2).innerText(),/8/);
     await page.getByRole('button',{name:/03 ML intelligence/}).click();
-    await page.getByRole('heading',{name:'Compare actual scheduling outcomes'}).waitFor();
-    await page.locator('section').filter({has:page.getByRole('heading',{name:'Compare actual scheduling outcomes'})}).locator('tbody tr').first().waitFor();
+    await page.getByRole('heading',{name:'Verified Dynamic ML scheduling metrics'}).waitFor();
+    await page.locator('summary').filter({hasText:'Historical Experiments'}).click();
     assert.match(await page.locator('body').innerText(),/76.8%/);
     assert.match(await page.locator('body').innerText(),/73.07%/);
     for(const option of await page.getByLabel('Saved evaluation cohort').locator('option').evaluateAll(options=>options.map(o=>o.value))) {

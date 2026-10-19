@@ -47,6 +47,11 @@ def catalog():
         "offline": {"source": metadata_path, "metadata": metadata, "inference_available": False,
             "message": "Verified saved metadata is available. The matching fitted six-policy binary is not available; live predictions are not fabricated."},
         "research": read_json("configs/research_status.json"),
+        "dynamic_v5_evaluation": read_json("results/dynamic_v5_review/analysis.json")
+            if (ROOT / "results/dynamic_v5_review/analysis.json").exists() else None,
+        "azure_external": {"source": "results/azure_external_pilot/summary.json",
+            "summary": read_json("results/azure_external_pilot/summary.json")}
+            if (ROOT / "results/azure_external_pilot/summary.json").exists() else None,
         "bakeoff": {"source": "results/real_desktop_ml/decision-tree-demo/summary.json",
                     "summary": read_json("results/real_desktop_ml/decision-tree-demo/summary.json")}}
 

@@ -31,6 +31,11 @@ project dependencies are unchanged.
 
 ## Suggested review path
 
+The Research page also reads `results/azure_external_pilot/summary.json` when
+available. This separate Azure-derived pilot is not synthetic accuracy or real
+kernel validation. The dashboard reads saved results only; startup never reruns
+the pilot. See its REPORT.md for exact selections and the excluded peak snapshot.
+
 1. **Overview:** explain the architecture and three separate scheduling tracks.
 2. **Scheduling lab:** choose Mixed CPU / I/O and Round Robin. Start, Pause,
    Step, Resume, and Reset. Change algorithm to show real schedule differences.
