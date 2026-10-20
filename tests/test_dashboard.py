@@ -52,7 +52,7 @@ class DashboardTests(unittest.TestCase):
             self.assertEqual(client.get("/configs/real_desktop_ml.json").status_code, 404)
             response = client.get("/api/comparison", params={"workload":"short_jobs"})
             self.assertEqual(response.status_code, 200)
-            self.assertEqual(len(response.json()["results"]), 8)
+            self.assertEqual(len(response.json()["results"]), 9)
             self.assertTrue(all("score" in row for row in response.json()["results"]))
 
 

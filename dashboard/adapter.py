@@ -6,6 +6,7 @@ order. No scheduling decisions are made here or in the browser.
 """
 from dataclasses import asdict
 from functools import lru_cache
+import hashlib
 import json
 from pathlib import Path
 
@@ -17,6 +18,8 @@ from simulator.process import Process
 from simulator.simulator import run_simulation
 
 ROOT = Path(__file__).resolve().parents[1]
+DYNAMIC_V5_NAME = 'Dynamic ML (v5)'
+DYNAMIC_V5_ARTIFACT = 'artifacts/dynamic_v5_20261019/policy_cost/model.joblib'
 WORKLOADS = {
     "short_jobs": {"name": "Short-job-heavy", "description": "A long job meets a stream of short tasks. Compare responsiveness and completion order.",
                    "jobs": [(0, (12,), (), 3), (1, (2,), (), 1), (2, (1,), (), 2), (3, (3,), (), 1), (4, (2,), (), 2), (5, (1,), (), 1)]},
@@ -43,10 +46,14 @@ def catalog():
     metadata = read_json(metadata_path) if (ROOT / metadata_path).exists() else None
     return {"workloads": [{"id": key, "name": value["name"], "description": value["description"], "count": len(value["jobs"])}
                           for key, value in WORKLOADS.items()],
-        "algorithms": list(ALGORITHMS) + ["MLFQ", "Tuned MLFQ"], "score_weights": SCORE_WEIGHTS,
+        "algorithms": list(ALGORITHMS) + ["MLFQ", "Tuned MLFQ", DYNAMIC_V5_NAME], "score_weights": SCORE_WEIGHTS,
         "offline": {"source": metadata_path, "metadata": metadata, "inference_available": False,
             "message": "Verified saved metadata is available. The matching fitted six-policy binary is not available; live predictions are not fabricated."},
         "research": read_json("configs/research_status.json"),
+        "azure_adapted": read_json("results/azure_adapted_20261020/dashboard.json")
+            if (ROOT / "results/azure_adapted_20261020/dashboard.json").exists() else None,
+        "real_source_dynamic": read_json("results/real_source_dynamic_review_20261020/dashboard.json")
+            if (ROOT / "results/real_source_dynamic_review_20261020/dashboard.json").exists() else None,
         "dynamic_v5_evaluation": read_json("results/dynamic_v5_review/analysis.json")
             if (ROOT / "results/dynamic_v5_review/analysis.json").exists() else None,
         "azure_external": {"source": "results/azure_external_pilot/summary.json",
@@ -57,6 +64,8 @@ def catalog():
 
 
 def _run(jobs, algorithm):
+    if algorithm == DYNAMIC_V5_NAME:
+        return _run_v5(jobs).simulation
     if algorithm == "Tuned MLFQ":
         parameters = read_json("configs/research_status.json")["recommended_static"]["parameters"]
         return run_simulation(algorithm, mlfq, jobs, **parameters)
@@ -65,6 +74,27 @@ def _run(jobs, algorithm):
         raise ValueError("Choose an available scheduling algorithm.")
     scheduler, kwargs = registry[algorithm]
     return run_simulation(algorithm, scheduler, jobs, **kwargs)
+
+
+@lru_cache(maxsize=1)
+def _original_v5():
+    from autoscheduler.dynamic import DYNAMIC_FEATURE_NAMES, DynamicRouterConfig
+    from autoscheduler.model import load_model, load_model_metadata
+    path = ROOT / DYNAMIC_V5_ARTIFACT
+    if not path.exists():
+        raise ValueError('Original v5 artifact is unavailable; select a static policy.')
+    expected = read_json('results/real_source_dynamic_review_20261020/dashboard.json')['model_sha256']
+    if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+        raise ValueError('Original v5 artifact hash differs from its verified report.')
+    config = DynamicRouterConfig(**load_model_metadata(path)['dynamic_config'])
+    model = load_model(path, DYNAMIC_FEATURE_NAMES, expected_dynamic_config=config)
+    return model, config
+
+
+def _run_v5(jobs):
+    from autoscheduler.dynamic import run_dynamic
+    model, config = _original_v5()
+    return run_dynamic(jobs, model, config)
 
 
 def _frames(jobs, result):
@@ -118,12 +148,16 @@ def _frames(jobs, result):
 @lru_cache(maxsize=24)
 def simulation(workload="short_jobs", algorithm="Round Robin"):
     jobs = processes(workload)
-    result = _run(jobs, algorithm)
+    router = _run_v5(jobs) if algorithm == DYNAMIC_V5_NAME else None
+    result = router.simulation if router else _run(jobs, algorithm)
     data = asdict(result)
     data.pop("process_metrics")
     return {"workload": workload, "algorithm": algorithm, "metrics": data,
         "timeline": result.timeline, "processes": [asdict(m) for m in result.process_metrics],
         "frames": _frames(jobs, result), "features": extract_features(jobs),
+        "routing_decisions": [asdict(d) for d in router.decisions] if router else [],
+        "dynamic_model": {"version": "v5", "artifact": DYNAMIC_V5_ARTIFACT,
+                          "initial_policy": _original_v5()[1].initial_policy} if router else None,
         "queue_note": "Ready membership reconstructed from CPU service and I/O intervals; policy queue order is not exposed."}
 
 
@@ -131,7 +165,8 @@ def simulation(workload="short_jobs", algorithm="Round Robin"):
 def comparison(workload="short_jobs"):
     jobs = processes(workload)
     references = compare_algorithms(jobs)
-    results = {**references, "MLFQ": _run(jobs, "MLFQ"), "Tuned MLFQ": _run(jobs, "Tuned MLFQ")}
+    results = {**references, "MLFQ": _run(jobs, "MLFQ"), "Tuned MLFQ": _run(jobs, "Tuned MLFQ"),
+               DYNAMIC_V5_NAME: _run(jobs, DYNAMIC_V5_NAME)}
     rows = []
     for name, result in results.items():
         response = sorted(m.response_time for m in result.process_metrics)

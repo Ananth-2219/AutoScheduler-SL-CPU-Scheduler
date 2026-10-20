@@ -259,7 +259,7 @@ def _ready_key(item: _Ready, policy: str, now: int, aging_interval: int) -> tupl
     if policy == "Round Robin":
         return (item.sequence,)
     if policy == "Priority RR":
-        return (max(1, item.priority - (now - item.time) // aging_interval), item.sequence)
+        return (1 if item.priority <= 1 else max(1, item.priority - (now - item.time) // aging_interval), item.sequence)
     if policy == "SJF":
         return (item.process.burst_time, item.time, item.process.pid)
     if policy == "SRTF":
@@ -278,13 +278,14 @@ def _rebuild_ready(state: _State, policy: str, priority_rr_config: dict) -> None
 
 
 def _age_mlfq(state: _State) -> None:
-    for item in sorted(state.ready, key=lambda candidate: candidate.sequence):
-        if item.queue_level > 0 and state.current_time - item.aging_since >= state.mlfq_aging_threshold:
-            item.queue_level -= 1
-            item.quantum_used = 0
-            item.aging_since = state.current_time
-            item.sequence = state.sequence
-            state.sequence += 1
+    eligible = (item for item in state.ready if item.queue_level > 0
+                and state.current_time - item.aging_since >= state.mlfq_aging_threshold)
+    for item in sorted(eligible, key=lambda candidate: candidate.sequence):
+        item.queue_level -= 1
+        item.quantum_used = 0
+        item.aging_since = state.current_time
+        item.sequence = state.sequence
+        state.sequence += 1
 
 
 def _switch_policy(state: _State, previous: str, selected: str) -> None:
@@ -606,10 +607,14 @@ def _counterfactual_label(
 def _training_states(
     processes: Iterable[Process], config: DynamicRouterConfig, priority_rr_config: dict,
     behavior_policy: str = "Round Robin", behavior_seed: int = 0, behavior_model=None,
+    *, max_states: int | None = None,
 ) -> list[tuple[_State, str, int]]:
+    if max_states is not None and max_states <= 0:
+        raise ValueError("max_states must be positive")
     state, states, next_epoch = _new_state(processes, config), [], config.epoch_ticks
     active, last_switch = config.initial_policy, 0
     randomizer = random.Random(behavior_seed)
+    sampler, states_seen = random.Random(behavior_seed ^ 0xA2E), 0
     policies = dynamic_policy_names(config)
     while state.pending or state.ready or state.blocked:
         _release(state, state.current_time)
@@ -625,7 +630,13 @@ def _training_states(
             dwell = max(0, last_switch + config.dwell_epochs * config.epoch_ticks - state.current_time)
             features = extract_dynamic_features(state, active, dwell)
             if not dwell:
-                states.append((copy.deepcopy(state), active, dwell))
+                states_seen += 1
+                if max_states is None or len(states) < max_states:
+                    states.append((copy.deepcopy(state), active, dwell))
+                else:
+                    slot = sampler.randrange(states_seen)
+                    if slot < max_states:
+                        states[slot] = (copy.deepcopy(state), active, dwell)
             if behavior_model is not None:
                 selected, confidence = _prediction(behavior_model, features, dynamic_action_names(config))
                 selected = _resolve_action(selected, active)

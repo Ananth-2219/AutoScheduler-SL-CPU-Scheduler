@@ -91,13 +91,14 @@ def simulate(
         nonlocal sequence
         if policy != "mlfq":
             return
-        for item in sorted(ready, key=lambda candidate: candidate.sequence):
-            if item.queue_level > 0 and current_time - item.aging_since >= (aging_threshold or 1):
-                item.queue_level -= 1
-                item.quantum_used = 0
-                item.aging_since = current_time
-                item.sequence = sequence
-                sequence += 1
+        eligible = (item for item in ready if item.queue_level > 0
+                    and current_time - item.aging_since >= (aging_threshold or 1))
+        for item in sorted(eligible, key=lambda candidate: candidate.sequence):
+            item.queue_level -= 1
+            item.quantum_used = 0
+            item.aging_since = current_time
+            item.sequence = sequence
+            sequence += 1
 
     def take_ready() -> _Ready:
         age_ready()
@@ -107,7 +108,7 @@ def simulate(
             index = min(
                 range(len(ready)),
                 key=lambda i: (
-                    max(1, ready[i].priority - (current_time - ready[i].time) // (aging_interval or 1)),
+                    1 if ready[i].priority <= 1 else max(1, ready[i].priority - (current_time - ready[i].time) // (aging_interval or 1)),
                     ready[i].sequence,
                 ),
             )
