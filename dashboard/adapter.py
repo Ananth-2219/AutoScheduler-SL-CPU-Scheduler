@@ -9,6 +9,7 @@ from functools import lru_cache
 import hashlib
 import json
 from pathlib import Path
+from urllib.parse import urlencode
 
 from autoscheduler.evaluation import ALGORITHMS, DEPLOYABLE_ALGORITHMS, SCORE_WEIGHTS, compare_algorithms, score_result_against_reference
 from autoscheduler.features import extract_features
@@ -20,6 +21,8 @@ from simulator.simulator import run_simulation
 ROOT = Path(__file__).resolve().parents[1]
 DYNAMIC_V5_NAME = 'Dynamic ML (v5)'
 DYNAMIC_V5_ARTIFACT = 'artifacts/dynamic_v5_20261019/policy_cost/model.joblib'
+MULTI_DEMO_ARTIFACT = 'artifacts/dynamic_multi_policy_demo_20261020/model.joblib'
+MULTI_DEMO_LABEL = 'Experimental multi-policy demonstration model — not original fitted v5'
 WORKLOADS = {
     "short_jobs": {"name": "Short-job-heavy", "description": "A long job meets a stream of short tasks. Compare responsiveness and completion order.",
                    "jobs": [(0, (12,), (), 3), (1, (2,), (), 1), (2, (1,), (), 2), (3, (3,), (), 1), (4, (2,), (), 2), (5, (1,), (), 1)]},
@@ -27,6 +30,9 @@ WORKLOADS = {
                  "jobs": [(0, (2, 3, 2), (4, 3), 1), (0, (14,), (), 3), (1, (1, 2, 1), (5, 4), 2), (2, (7,), (), 2), (4, (2, 3), (3,), 1), (6, (3,), (), 3)]},
     "bursty": {"name": "Bursty arrivals", "description": "Two arrival bursts create changing queue pressure. Watch preemption and first service.",
                "jobs": [(0, (10,), (), 3), (0, (6,), (), 2), (1, (3,), (), 1), (8, (2,), (), 1), (8, (5,), (), 2), (9, (1,), (), 1), (14, (4,), (), 2), (14, (2,), (), 3)]},
+    "dynamic_multi_policy": {"name": "Dynamic ML — Multi-Policy Switching Demo",
+        "description": "Experimental multi-policy demonstration model — not original fitted v5. Same v5 safeguards; genuine fitted-cost decisions, not validated scheduling superiority.",
+        "jobs": [(0, (30,), (), 0)] * 6 + [(33, (2,), (), 0)]},
 }
 
 
@@ -36,7 +42,7 @@ def read_json(path):
 
 def processes(workload):
     if workload not in WORKLOADS:
-        raise ValueError("Choose one of the three built-in demo workloads.")
+        raise ValueError("Choose an available built-in demo workload.")
     return [Process(f"P{i}", arrival, sum(cpu), priority, cpu_bursts=cpu, io_bursts=io)
             for i, (arrival, cpu, io, priority) in enumerate(WORKLOADS[workload]["jobs"], 1)]
 
@@ -97,6 +103,36 @@ def _run_v5(jobs):
     return run_dynamic(jobs, model, config)
 
 
+@lru_cache(maxsize=1)
+def _multi_demo():
+    from autoscheduler.dynamic import DYNAMIC_FEATURE_NAMES
+    from autoscheduler.model import load_model
+    manifest = read_json('artifacts/dynamic_multi_policy_demo_20261020/manifest.json')
+    if hashlib.sha256((ROOT / MULTI_DEMO_ARTIFACT).read_bytes()).hexdigest() != manifest['model_sha256']:
+        raise ValueError('Demo artifact does not match its provenance manifest.')
+    config = _original_v5()[1]
+    return load_model(ROOT / MULTI_DEMO_ARTIFACT, DYNAMIC_FEATURE_NAMES, expected_dynamic_config=config), config
+
+
+def _run_multi_demo(jobs):
+    from copy import copy
+    from autoscheduler.dynamic import run_dynamic
+    base, config = _multi_demo()
+    model, recorded = copy(base), []
+    def predict(matrix):
+        selections = base.predict(matrix)
+        for action, costs in zip(selections, base.regressor.predict(matrix)):
+            costs = dict(zip(base.policies, map(float, costs)))
+            recorded.append({'proposed_action': action, 'predicted_costs': costs,
+                'predicted_policy_benefits': {p: costs['No Switch'] - c for p, c in costs.items()}})
+        return selections
+    model.predict = predict
+    router = run_dynamic(jobs, model, config)
+    assert len(recorded) == len(router.decisions)
+    router.recorded_predictions = recorded
+    return router
+
+
 def _frames(jobs, result):
     """Reconstruct playback membership and cumulative waiting without rescheduling."""
     by_pid = {p.pid: p for p in jobs}
@@ -148,16 +184,39 @@ def _frames(jobs, result):
 @lru_cache(maxsize=24)
 def simulation(workload="short_jobs", algorithm="Round Robin"):
     jobs = processes(workload)
-    router = _run_v5(jobs) if algorithm == DYNAMIC_V5_NAME else None
+    demo = workload == 'dynamic_multi_policy' and algorithm == DYNAMIC_V5_NAME
+    router = (_run_multi_demo(jobs) if demo else _run_v5(jobs)) if algorithm == DYNAMIC_V5_NAME else None
     result = router.simulation if router else _run(jobs, algorithm)
     data = asdict(result)
     data.pop("process_metrics")
+    frames = _frames(jobs, result)
+    periods, transitions = [], []
+    if router:
+        active, start = router.initial_policy, 0
+        for index, decision in enumerate(router.decisions):
+            if decision.accepted:
+                periods.append({"start": start, "end": decision.time, "policy": active})
+                transitions.append({"decision_tick": decision.time, "effective_tick": decision.time,
+                    "from_policy": active, "to_policy": decision.active, "reason": decision.reason,
+                    "predicted_benefit": router.recorded_predictions[index]['predicted_policy_benefits'][decision.active] if demo else None})
+                active, start = decision.active, decision.time
+        periods.append({"start": start, "end": result.makespan, "policy": active})
+        for frame in frames:
+            frame["active_policy"] = next((p["policy"] for p in periods
+                if p["start"] <= frame["tick"] < p["end"]), active)
     return {"workload": workload, "algorithm": algorithm, "metrics": data,
         "timeline": result.timeline, "processes": [asdict(m) for m in result.process_metrics],
-        "frames": _frames(jobs, result), "features": extract_features(jobs),
-        "routing_decisions": [asdict(d) for d in router.decisions] if router else [],
-        "dynamic_model": {"version": "v5", "artifact": DYNAMIC_V5_ARTIFACT,
-                          "initial_policy": _original_v5()[1].initial_policy} if router else None,
+        "frames": frames, "features": extract_features(jobs),
+        "policy_timeline": periods, "policy_transitions": transitions,
+        "routing_decisions": [{**asdict(d), **(router.recorded_predictions[i] if demo else {})} for i, d in enumerate(router.decisions)] if router else [],
+        "dynamic_model": {"version": "experimental_demo" if demo else "v5", "artifact": MULTI_DEMO_ARTIFACT if demo else DYNAMIC_V5_ARTIFACT,
+                          "label": MULTI_DEMO_LABEL if demo else "Original fitted Dynamic ML (v5)",
+                          "switch_margin": (_multi_demo() if demo else _original_v5())[0].switch_margin,
+                          "training_manifest": 'artifacts/dynamic_multi_policy_demo_20261020/manifest.json' if demo else None,
+                          "configuration": asdict(_original_v5()[1]), "initial_policy": _original_v5()[1].initial_policy} if router else None,
+        "reproducibility": {"workload_id": workload, "input_processes": [asdict(p) for p in jobs],
+            "model_sha256": hashlib.sha256((ROOT / (MULTI_DEMO_ARTIFACT if demo else DYNAMIC_V5_ARTIFACT)).read_bytes()).hexdigest(),
+            "api_request": "/api/simulation?" + urlencode({"workload": workload, "algorithm": algorithm})} if router else None,
         "queue_note": "Ready membership reconstructed from CPU service and I/O intervals; policy queue order is not exposed."}
 
 
@@ -166,7 +225,8 @@ def comparison(workload="short_jobs"):
     jobs = processes(workload)
     references = compare_algorithms(jobs)
     results = {**references, "MLFQ": _run(jobs, "MLFQ"), "Tuned MLFQ": _run(jobs, "Tuned MLFQ"),
-               DYNAMIC_V5_NAME: _run(jobs, DYNAMIC_V5_NAME)}
+               (MULTI_DEMO_LABEL if workload == 'dynamic_multi_policy' else DYNAMIC_V5_NAME):
+                   _run_multi_demo(jobs).simulation if workload == 'dynamic_multi_policy' else _run(jobs, DYNAMIC_V5_NAME)}
     rows = []
     for name, result in results.items():
         response = sorted(m.response_time for m in result.process_metrics)
