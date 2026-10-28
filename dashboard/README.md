@@ -95,3 +95,33 @@ overflow at 1440/1024/768/320px. Screenshots go to `/tmp`, not historical report
 For frontend development only: run the backend and
 `npm --prefix dashboard/web run dev`; Vite proxies `/api` to local port 8000.
 Rebuild before using the one-command production-style demo again.
+
+## Timing reports and dashboard verification
+
+The dashboard omits controller overhead panels, percentages, table columns and
+explanatory notices. Scheduling results, context-switch timeline intervals,
+decision-latency safety gates and research limitations remain visible.
+
+Underlying measurements and terminal reports remain available separately:
+
+```bash
+python scripts/show_latency_metrics.py --suite azure
+python scripts/show_azure_metrics.py --measure-overhead
+```
+
+`scripts/measure_dashboard_overhead.py` can still generate the private local
+snapshot at `dashboard/generated/controller_overhead.json`. The dashboard API
+retains its timing data; loading the dashboard never starts a timing replay.
+See [terminal metric reports](../docs/RUN_METRIC_REPORTS.md) for the report commands.
+
+Browser verification using an existing Chromium installation and Node 22+:
+
+```bash
+CHROME=/path/to/chrome node dashboard/overhead-browser-smoke.cjs
+```
+
+It launches an isolated profile and checks that all four pages, including
+collapsed research sections and static/dynamic simulations, omit overhead text
+and panels. It also checks research limitations, accessibility labels, console
+errors, external requests and overflow at 1440/1024/768/320 pixels. Set `DEMO_URL`
+for another local server port. Screenshots and the temporary profile stay in `/tmp`.

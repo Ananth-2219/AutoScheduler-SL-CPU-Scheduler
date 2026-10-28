@@ -6,13 +6,15 @@ import unittest
 
 
 class DashboardTests(unittest.TestCase):
-    def test_three_demos_preserve_service_and_final_wait_accounting(self):
+    def test_demos_preserve_service_and_final_wait_accounting(self):
         from dashboard.adapter import WORKLOADS, simulation
+        expected_counts = {"short_jobs": 6, "mixed_io": 6, "bursty": 8, "dynamic_response_advantage": 14}
+        self.assertEqual(set(WORKLOADS), set(expected_counts))
         for workload in WORKLOADS:
             for algorithm in ("FCFS", "SJF", "SRTF", "Round Robin", "Priority", "Priority RR", "MLFQ", "Tuned MLFQ"):
                 with self.subTest(workload=workload, algorithm=algorithm):
                     result = simulation(workload, algorithm)
-                    self.assertTrue(5 <= len(result["processes"]) <= 12)
+                    self.assertEqual(len(result["processes"]), expected_counts[workload])
                     self.assertEqual(len(result["frames"]), result["metrics"]["makespan"] + 1)
                     for process in result["processes"]:
                         service = sum(end-start for pid,start,end in result["timeline"] if pid == process["pid"])

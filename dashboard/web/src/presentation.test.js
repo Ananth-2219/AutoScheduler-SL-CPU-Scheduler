@@ -23,8 +23,9 @@ test('faculty pages expose only original v5 and keep cohorts separate',async()=>
     assert.match(html,/216 training \/ 72 validation \/ 72 test/);
     assert.match(html,/-9\.425/);
     assert.match(html,/dummy predictor performed better/i);
-    assert.match(html,/Where Dynamic ML v5 Performs Better/);
-    assert.match(html,/Where Tuned MLFQ Performs Better/);
+    assert.match(html,/Performance Advantages · Dynamic ML v5/);
+    assert.match(html,/Baseline Advantages · Tuned MLFQ/);
+    assert.doesNotMatch(html,/overhead/i);
     const prediction=JSON.parse(readFileSync(new URL('../../../results/original_v5_azure_prediction_20261020/metrics.json',import.meta.url),'utf8'));
     const pairs=JSON.parse(readFileSync(new URL('../../../results/original_v5_azure_prediction_20261020/predictions.json',import.meta.url),'utf8'));
     const actual=pairs.actual.flat(),predicted=pairs.predicted.flat(),mean=actual.reduce((a,b)=>a+b,0)/actual.length;
@@ -46,6 +47,7 @@ test('faculty pages expose only original v5 and keep cohorts separate',async()=>
     assert.equal((simulation.match(/<option[^>]*>Dynamic ML \(v5\)<\/option>/g)||[]).length,1);
     assert.doesNotMatch(simulation,/v6|v4|v3|Azure tree|quiet-period/i);
     const review=renderToStaticMarkup(React.createElement(Review,{data}));
+    assert.doesNotMatch(review,/overhead/i);
     assert.doesNotMatch(review,/Faculty questions|Expand an answer during the review/i);
     assert.doesNotMatch(review,/v6|quiet-period|Azure-trained experimental/i);
     assert.equal((html.match(/class="outcome-card /g)||[]).length,6);

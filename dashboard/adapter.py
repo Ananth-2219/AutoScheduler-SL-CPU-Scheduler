@@ -9,6 +9,7 @@ from functools import lru_cache
 import hashlib
 import json
 from pathlib import Path
+from time import perf_counter
 from urllib.parse import urlencode
 
 from autoscheduler.evaluation import ALGORITHMS, DEPLOYABLE_ALGORITHMS, SCORE_WEIGHTS, compare_algorithms, score_result_against_reference
@@ -30,9 +31,13 @@ WORKLOADS = {
                  "jobs": [(0, (2, 3, 2), (4, 3), 1), (0, (14,), (), 3), (1, (1, 2, 1), (5, 4), 2), (2, (7,), (), 2), (4, (2, 3), (3,), 1), (6, (3,), (), 3)]},
     "bursty": {"name": "Bursty arrivals", "description": "Two arrival bursts create changing queue pressure. Watch preemption and first service.",
                "jobs": [(0, (10,), (), 3), (0, (6,), (), 2), (1, (3,), (), 1), (8, (2,), (), 1), (8, (5,), (), 2), (9, (1,), (), 1), (14, (4,), (), 2), (14, (2,), (), 3)]},
-    "dynamic_multi_policy": {"name": "Dynamic ML — Multi-Policy Switching Demo",
-        "description": "Experimental multi-policy demonstration model — not original fitted v5. Same v5 safeguards; genuine fitted-cost decisions, not validated scheduling superiority.",
-        "jobs": [(0, (30,), (), 0)] * 6 + [(33, (2,), (), 0)]},
+    "dynamic_response_advantage": {"name": "Illustrative Workload — Selected Demonstration Scenario",
+        "description": "Original fitted Dynamic ML v5. A CPU/I/O cohort followed by staggered short arrivals illustrates a measured response-time advantage; not independent performance evidence.",
+        "jobs": [(0, (20, 20), (10,), priority) for priority in (1, 2, 3, 1, 2, 3)]
+            + [(60, (1,), (), 1), (61, (2,), (), 2),
+               (126, (1,), (), 1), (126, (3,), (), 2),
+               (127, (1,), (), 1), (127, (2,), (), 2),
+               (128, (1,), (), 1), (128, (3,), (), 2)]},
 }
 
 
@@ -48,9 +53,11 @@ def processes(workload):
 
 
 def catalog():
+    from dashboard.overhead import load_snapshot
     metadata_path = "artifacts/demo_tree.json"
     metadata = read_json(metadata_path) if (ROOT / metadata_path).exists() else None
-    return {"workloads": [{"id": key, "name": value["name"], "description": value["description"], "count": len(value["jobs"])}
+    return {"controller_overhead": load_snapshot(),
+        "workloads": [{"id": key, "name": value["name"], "description": value["description"], "count": len(value["jobs"])}
                           for key, value in WORKLOADS.items()],
         "algorithms": list(ALGORITHMS) + ["MLFQ", "Tuned MLFQ", DYNAMIC_V5_NAME], "score_weights": SCORE_WEIGHTS,
         "offline": {"source": metadata_path, "metadata": metadata, "inference_available": False,
@@ -185,8 +192,30 @@ def _frames(jobs, result):
 def simulation(workload="short_jobs", algorithm="Round Robin"):
     jobs = processes(workload)
     demo = workload == 'dynamic_multi_policy' and algorithm == DYNAMIC_V5_NAME
+    if algorithm == DYNAMIC_V5_NAME:
+        _multi_demo() if demo else _original_v5()  # Exclude model loading from replay timing.
+    started = perf_counter()
     router = (_run_multi_demo(jobs) if demo else _run_v5(jobs)) if algorithm == DYNAMIC_V5_NAME else None
     result = router.simulation if router else _run(jobs, algorithm)
+    wall_ms = (perf_counter() - started) * 1000
+    overhead = None
+    if router:
+        from autoscheduler.review_metrics import latency_totals
+        overhead = latency_totals(router.decisions, result.makespan,
+                                  sum(p.burst_time for p in jobs), wall_ms, None)
+    response_comparison = None
+    if workload == 'dynamic_response_advantage' and router:
+        from autoscheduler.dynamic import _percentile
+        baseline = _run(jobs, 'Tuned MLFQ')
+        references = compare_algorithms(jobs)
+        def measured(simulation_result):
+            return {"avg_response": simulation_result.avg_response_time,
+                "p95_response": _percentile([p.response_time for p in simulation_result.process_metrics], .95),
+                "avg_waiting": simulation_result.avg_waiting_time,
+                "weighted_score": score_result_against_reference(simulation_result, references)}
+        response_comparison = {"original_v5": measured(result), "tuned_mlfq": measured(baseline),
+            "units": "simulator ticks; weighted score is dimensionless",
+            "score_reference": "Fixed six-policy reference bounds on identical inputs; historical weights unchanged."}
     data = asdict(result)
     data.pop("process_metrics")
     frames = _frames(jobs, result)
@@ -205,6 +234,9 @@ def simulation(workload="short_jobs", algorithm="Round Robin"):
             frame["active_policy"] = next((p["policy"] for p in periods
                 if p["start"] <= frame["tick"] < p["end"]), active)
     return {"workload": workload, "algorithm": algorithm, "metrics": data,
+        "overhead": overhead,
+        "switch_overhead_percent": 100 * result.context_switch_time / result.makespan if result.makespan else None,
+        "response_comparison": response_comparison,
         "timeline": result.timeline, "processes": [asdict(m) for m in result.process_metrics],
         "frames": frames, "features": extract_features(jobs),
         "policy_timeline": periods, "policy_transitions": transitions,

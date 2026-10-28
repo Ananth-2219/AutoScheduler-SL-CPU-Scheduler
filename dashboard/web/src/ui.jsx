@@ -5,4 +5,4 @@ export function Metric({ label, value, unit, note }) { return <div className="me
 export function Source({ children }) { return <p className="source">Source · {children}</p>; }
 export function Badge({ children, tone = '' }) { return <span className={`badge ${tone}`}>{children}</span>; }
 export function ErrorNotice({ children }) { return <div className="notice error" role="alert">{children}</div>; }
-export async function api(path, signal) { const response = await fetch(path, { signal }); if (!response.ok) throw new Error('Unable to load the local result. Check that the demo server is running, then retry.'); return response.json(); }
+export async function api(path, signal) { const response = await fetch(path, { signal }); if (!response.ok) throw new Error('Local results are unavailable. Check the server connection and retry.'); return response.json(); }

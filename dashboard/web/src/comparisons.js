@@ -6,7 +6,7 @@ export const metrics = [
   {key:'p95_response_ms',label:'Mean workload P95 response',unit:'ms',explanation:'Tuned MLFQ avoids the long first-service tails caused by policy excursions.'},
   {key:'avg_turnaround_ms',label:'Average turnaround time',unit:'ms',explanation:'Lower completion delay accompanies the waiting-time improvement.'},
   {key:'starvation',label:'Starvation diagnostic',unit:'jobs / workload',explanation:'Fewer jobs exceed waiting time > 3 × proxy CPU demand; this is a simulator diagnostic.'},
-  {key:'context_switches',label:'PID context switches',unit:'per workload',explanation:'Fewer PID transitions were recorded; this does not measure Linux overhead.'},
+  {key:'context_switches',label:'PID context switches',unit:'per workload',explanation:'Fewer PID transitions were recorded; these are simulator events, not Linux measurements.'},
   {key:'throughput_jobs_per_ms',label:'Throughput',unit:'jobs / ms',higher:true,explanation:'Completed jobs per simulated makespan.'},
   {key:'utilization_fraction',label:'CPU utilization',unit:'fraction',higher:true,explanation:'Busy fraction of the simulated window.'},
 ];

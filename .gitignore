@@ -51,3 +51,6 @@ azurefunctions*.tar.xz
 .DS_Store
 /docs/workload_coverage/output/workloads.csv
 /docs/workload_coverage/output/stress.csv
+
+# Local host timing snapshots; source code and historical summaries stay tracked.
+/dashboard/generated/
